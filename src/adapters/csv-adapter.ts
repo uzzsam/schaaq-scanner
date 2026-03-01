@@ -50,7 +50,7 @@ const INTEGER_RE = /^-?\d+$/;
 const DECIMAL_RE = /^-?\d+\.\d+$/;
 const BOOLEAN_RE = /^(true|false|yes|no|0|1)$/i;
 
-const NULL_STRINGS = new Set(['null', 'NULL', 'None', 'none', 'N/A', 'n/a', 'NA', '', 'undefined']);
+const NULL_STRINGS = new Set(['', 'N/A', 'NA', 'NULL', 'None', 'n/a', 'none', 'null', 'undefined']);
 
 // ---------------------------------------------------------------------------
 // Core: parse uploaded files into SchemaData
