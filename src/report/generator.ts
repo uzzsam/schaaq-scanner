@@ -251,9 +251,11 @@ function registerHelpers(): void {
   });
 
   Handlebars.registerHelper('severityBadge', (severity: string) => {
+    const escapedSeverity = Handlebars.Utils.escapeExpression(severity);
     const color = SEVERITY_COLORS[severity] ?? '#95A5A6';
+    const escapedColor = Handlebars.Utils.escapeExpression(color);
     return new Handlebars.SafeString(
-      `<span class="badge" style="background:${color}">${severity.toUpperCase()}</span>`
+      `<span class="badge" style="background:${escapedColor}">${escapedSeverity.toUpperCase()}</span>`
     );
   });
 }
