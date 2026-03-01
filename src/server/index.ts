@@ -5,6 +5,7 @@ import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import type Database from 'better-sqlite3';
 import { initDatabase } from './db/schema';
+import { initEncryptionKey } from './db/crypto';
 import { Repository } from './db/repository';
 import { ScanRunner, type ScanProgress } from './scan-runner';
 import { projectRoutes } from './routes/projects';
@@ -28,6 +29,9 @@ export function createServer(config: ServerConfig): {
 
   // Ensure data directory exists
   mkdirSync(config.dataDir, { recursive: true });
+
+  // Initialise encryption (must be before database/repository usage)
+  initEncryptionKey(config.dataDir);
 
   // Initialise database
   const db = initDatabase(config.dataDir);

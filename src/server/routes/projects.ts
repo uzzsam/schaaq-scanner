@@ -1,6 +1,19 @@
 import { Router } from 'express';
-import type { Repository } from '../db/repository';
+import type { Repository, ProjectRow } from '../db/repository';
 import { safeError } from '../middleware/safe-error';
+
+/**
+ * Strip decrypted credentials from API responses.
+ * Returns a boolean indicator so the UI knows whether a password is configured.
+ */
+function redactCredentials(project: ProjectRow): Record<string, unknown> {
+  const { db_password, db_connection_uri, ...safe } = project;
+  return {
+    ...safe,
+    db_password_set: db_password != null && db_password !== '',
+    db_connection_uri_set: db_connection_uri != null && db_connection_uri !== '',
+  };
+}
 
 export function projectRoutes(repo: Repository): Router {
   const router = Router();
@@ -9,7 +22,7 @@ export function projectRoutes(repo: Repository): Router {
   router.get('/', (req, res) => {
     try {
       const projects = repo.listProjects();
-      res.json(projects);
+      res.json(projects.map(redactCredentials));
     } catch (err: any) {
       res.status(500).json({ error: safeError(err, 'GET /api/projects') });
     }
@@ -23,7 +36,7 @@ export function projectRoutes(repo: Repository): Router {
         res.status(404).json({ error: 'Project not found' });
         return;
       }
-      res.json(project);
+      res.json(redactCredentials(project));
     } catch (err: any) {
       res.status(500).json({ error: safeError(err, 'GET /api/projects/:id') });
     }
@@ -33,7 +46,7 @@ export function projectRoutes(repo: Repository): Router {
   router.post('/', (req, res) => {
     try {
       const project = repo.createProject(req.body);
-      res.status(201).json(project);
+      res.status(201).json(redactCredentials(project));
     } catch (err: any) {
       res.status(400).json({ error: safeError(err, 'POST /api/projects') });
     }
@@ -47,7 +60,7 @@ export function projectRoutes(repo: Repository): Router {
         res.status(404).json({ error: 'Project not found' });
         return;
       }
-      res.json(project);
+      res.json(redactCredentials(project));
     } catch (err: any) {
       res.status(400).json({ error: safeError(err, 'PATCH /api/projects/:id') });
     }

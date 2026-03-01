@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3';
 import { v4 as uuid } from 'uuid';
+import { encrypt, decrypt } from './crypto';
 
 // --- Project types ---
 export interface ProjectRow {
@@ -94,6 +95,25 @@ export class Repository {
   constructor(private db: Database.Database) {}
 
   // =========================================================================
+  // CREDENTIAL ENCRYPTION HELPERS
+  // =========================================================================
+
+  /** Encrypt a credential value before storing. Returns null passthrough. */
+  private encryptCredential(value: string | null | undefined): string | null {
+    if (value == null || value === '') return value as string | null;
+    return encrypt(value);
+  }
+
+  /** Decrypt credential fields on a ProjectRow after reading from DB. */
+  private decryptProjectRow(row: ProjectRow): ProjectRow {
+    return {
+      ...row,
+      db_password: row.db_password ? decrypt(row.db_password) : null,
+      db_connection_uri: row.db_connection_uri ? decrypt(row.db_connection_uri) : null,
+    };
+  }
+
+  // =========================================================================
   // PROJECTS
   // =========================================================================
 
@@ -125,10 +145,10 @@ export class Repository {
       dbConfig?.port ?? null,
       dbConfig?.database ?? null,
       dbConfig?.username ?? null,
-      dbConfig?.password ?? null,
+      this.encryptCredential(dbConfig?.password ?? null),
       dbConfig?.ssl ? 1 : 0,
       JSON.stringify(dbConfig?.schemas ?? ['public']),
-      dbConfig?.connectionUri ?? null,
+      this.encryptCredential(dbConfig?.connectionUri ?? null),
       JSON.stringify(input.thresholds ?? {}),
     );
 
@@ -136,11 +156,13 @@ export class Repository {
   }
 
   getProject(id: string): ProjectRow | undefined {
-    return this.db.prepare('SELECT * FROM projects WHERE id = ? AND archived = 0').get(id) as ProjectRow | undefined;
+    const row = this.db.prepare('SELECT * FROM projects WHERE id = ? AND archived = 0').get(id) as ProjectRow | undefined;
+    return row ? this.decryptProjectRow(row) : undefined;
   }
 
   listProjects(): ProjectRow[] {
-    return this.db.prepare('SELECT * FROM projects WHERE archived = 0 ORDER BY updated_at DESC').all() as ProjectRow[];
+    const rows = this.db.prepare('SELECT * FROM projects WHERE archived = 0 ORDER BY updated_at DESC').all() as ProjectRow[];
+    return rows.map(row => this.decryptProjectRow(row));
   }
 
   updateProject(id: string, updates: Partial<CreateProjectInput>): ProjectRow | undefined {
@@ -166,10 +188,10 @@ export class Repository {
       if (d.port !== undefined) { setClauses.push('db_port = ?'); values.push(d.port); }
       if (d.database !== undefined) { setClauses.push('db_name = ?'); values.push(d.database); }
       if (d.username !== undefined) { setClauses.push('db_username = ?'); values.push(d.username); }
-      if (d.password !== undefined) { setClauses.push('db_password = ?'); values.push(d.password); }
+      if (d.password !== undefined) { setClauses.push('db_password = ?'); values.push(this.encryptCredential(d.password)); }
       if (d.ssl !== undefined) { setClauses.push('db_ssl = ?'); values.push(d.ssl ? 1 : 0); }
       if (d.schemas !== undefined) { setClauses.push('db_schemas = ?'); values.push(JSON.stringify(d.schemas)); }
-      if (d.connectionUri !== undefined) { setClauses.push('db_connection_uri = ?'); values.push(d.connectionUri); }
+      if (d.connectionUri !== undefined) { setClauses.push('db_connection_uri = ?'); values.push(this.encryptCredential(d.connectionUri)); }
     }
 
     if (updates.thresholds !== undefined) {

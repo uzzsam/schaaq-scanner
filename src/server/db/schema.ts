@@ -18,7 +18,7 @@ const SCHEMA_SQL = `
     csrd_in_scope INTEGER NOT NULL DEFAULT 0,
     canonical_investment_aud REAL NOT NULL DEFAULT 1350000,
 
-    -- Database connection (encrypted at rest via application layer)
+    -- Database connection (AES-256-GCM encrypted at rest — see src/server/db/crypto.ts)
     db_type TEXT DEFAULT 'postgresql' CHECK (db_type IN ('postgresql', 'mysql', 'mssql')),
     db_host TEXT,
     db_port INTEGER,

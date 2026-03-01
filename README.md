@@ -186,11 +186,40 @@ dalc-scanner/
 ## Security
 
 - **Read-only** database access (SELECT on information_schema/pg_catalog only)
+- **Credentials encrypted at rest** — AES-256-GCM encryption for stored database passwords
 - **No data exfiltration** — no data leaves the client environment
 - **Air-gap capable** — works with zero internet connection
 - **No telemetry** — no external API calls, no analytics
 - **Non-root Docker** — runs as unprivileged `dalc` user
 - **Self-contained reports** — no external URLs, CDN, or JavaScript
+- **API credential redaction** — database passwords are never returned in API responses
+
+### Credential Encryption
+
+Database connection passwords and connection URIs are encrypted at rest using AES-256-GCM before being stored in the local SQLite database.
+
+**Key management** (in priority order):
+
+1. `DALC_ENCRYPTION_KEY` environment variable — 64 hex characters (32 bytes)
+2. `{dataDir}/encryption.key` file — auto-generated on first server start
+
+To generate a key manually:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+**Important:** Back up your encryption key. If the key is lost, encrypted credentials cannot be recovered and must be re-entered.
+
+### Upgrading from Pre-Encryption Versions
+
+If you have an existing database with plaintext credentials, run the one-time migration script after upgrading:
+
+```bash
+npx tsx src/migrations/encrypt-existing-credentials.ts --data-dir ./data
+```
+
+This script is idempotent — already-encrypted values are skipped. The `--data-dir` flag should point to the directory containing `dalc-scanner.db` (defaults to `./data`).
 
 ## Configuration Reference
 

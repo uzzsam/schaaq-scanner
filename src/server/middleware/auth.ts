@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
+import { timingSafeEqual } from 'crypto';
 
 /**
  * Optional API key authentication middleware.
@@ -30,7 +31,11 @@ export function apiKeyAuth(req: Request, res: Response, next: NextFunction): voi
   }
 
   const token = authHeader.slice(7); // strip "Bearer "
-  if (token !== apiKey) {
+
+  // Constant-time comparison to prevent timing attacks
+  const tokenBuf = Buffer.from(token);
+  const keyBuf = Buffer.from(apiKey);
+  if (tokenBuf.length !== keyBuf.length || !timingSafeEqual(tokenBuf, keyBuf)) {
     res.status(403).json({ error: 'Invalid API key' });
     return;
   }
