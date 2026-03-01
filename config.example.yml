@@ -1,0 +1,79 @@
+# =============================================================================
+# DALC Scanner Configuration
+# =============================================================================
+# Copy this file to config.yml and edit with your values.
+# All monetary values are in AUD. All fields are case-sensitive.
+
+# -----------------------------------------------------------------------------
+# Database connection
+# -----------------------------------------------------------------------------
+database:
+  type: postgresql           # postgresql | mysql | mssql
+  host: localhost
+  port: 5432
+  database: your_database
+  username: dalc_scanner     # Read-only user recommended
+  password: changeme
+  ssl: false
+  # connectionUri: postgresql://user:pass@host:port/db  # Alternative to host/port
+
+# -----------------------------------------------------------------------------
+# Scan scope
+# -----------------------------------------------------------------------------
+scan:
+  schemas:
+    - public
+    # - staging
+    # - analytics
+  excludeTables: []          # Regex patterns to exclude, e.g. ["^tmp_", "_backup$"]
+  maxTablesPerSchema: 500    # Safety limit per schema
+
+# -----------------------------------------------------------------------------
+# Organisation profile (drives cost calculations)
+# -----------------------------------------------------------------------------
+organisation:
+  name: "Your Organisation"
+  sector: mining             # mining | environmental | energy
+  revenueAUD: 500000000     # Annual revenue in AUD
+  totalFTE: 2500             # Total full-time equivalent employees
+  dataEngineers: 12          # Number of data/analytics engineers
+  avgEngineerSalaryAUD: 185000  # Average annual salary for data engineers
+  avgFTESalaryAUD: 125000    # Average annual salary across all FTE
+  aiBudgetAUD: 2500000       # Optional: annual AI/analytics budget
+  csrdInScope: false         # Is the organisation subject to CSRD reporting?
+  canonicalInvestmentAUD: 1800000  # Optional: planned canonical architecture investment
+
+# -----------------------------------------------------------------------------
+# Check thresholds (optional — sensible defaults used if omitted)
+# -----------------------------------------------------------------------------
+# thresholds:
+#   entitySimilarityThreshold: 0.7     # P1: entity name similarity threshold
+#   synonymGroups:                     # P1: known synonym groups
+#     - canonical: site
+#       variants: [location, facility, plant]
+#     - canonical: customer
+#       variants: [client, account, buyer]
+#   unitVariantThreshold: 2            # P2: max unit variants before flagging
+#   sharedEntityThreshold: 2           # P3: min schemas for cross-schema entity
+#   csvIndicatorPatterns:              # P4: patterns indicating CSV imports
+#     - "^stg_"
+#     - "^csv_"
+#     - "^tmp_"
+#     - "_import"
+#     - "_load"
+#   namingConvention: snake_case       # P5: expected naming convention
+#   nullRateThreshold: 0.3            # P6: null fraction threshold
+#   orphanedTableThreshold: 0          # P6: max acceptable orphaned tables
+#   auditColumnPatterns:               # P7: audit column patterns
+#     - created_at
+#     - updated_at
+#     - created_by
+#     - modified_by
+
+# -----------------------------------------------------------------------------
+# Output settings
+# -----------------------------------------------------------------------------
+output:
+  directory: ./output         # Where to write reports
+  format: html                # html | json
+  filename: dalc-report       # Base filename (extension added automatically)

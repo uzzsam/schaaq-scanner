@@ -1,0 +1,55 @@
+# =============================================================================
+# DALC Scanner — Docker Compose
+# =============================================================================
+# Usage:
+#   docker compose up scanner            — Run scan with mounted config
+#   docker compose --profile test up -d  — Start test database
+#   docker compose down                  — Stop all services
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Scanner service
+  # ---------------------------------------------------------------------------
+  scanner:
+    build: .
+    volumes:
+      - ./config.yml:/app/config/config.yml:ro
+      - ./output:/app/output
+    entrypoint: ["npx", "tsx", "src/cli.ts"]
+    command: ["--config", "/app/config/config.yml", "--output", "/app/output"]
+    depends_on:
+      test-db:
+        condition: service_healthy
+        required: false
+
+  # ---------------------------------------------------------------------------
+  # Dry-run scanner (no database needed)
+  # ---------------------------------------------------------------------------
+  scanner-dry:
+    build: .
+    volumes:
+      - ./output:/app/output
+    entrypoint: ["npx", "tsx", "src/cli.ts"]
+    command: ["--dry-run", "--verbose", "--output", "/app/output"]
+
+  # ---------------------------------------------------------------------------
+  # Test PostgreSQL database (only starts with --profile test)
+  # ---------------------------------------------------------------------------
+  test-db:
+    image: postgres:16-alpine
+    profiles: ["test"]
+    environment:
+      POSTGRES_DB: dalc_test
+      POSTGRES_USER: dalc_scanner
+      POSTGRES_PASSWORD: test_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./tests/fixtures/postgres.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dalc_scanner -d dalc_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s

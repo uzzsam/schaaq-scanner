@@ -1,0 +1,39 @@
+# =============================================================================
+# DALC Scanner — Test Configuration
+# =============================================================================
+# Used with docker-compose test-db service.
+# Matches the fixture data in tests/fixtures/postgres.sql.
+# =============================================================================
+
+database:
+  type: postgresql
+  host: test-db
+  port: 5432
+  database: dalc_test
+  username: dalc_scanner
+  password: test_password
+  ssl: false
+
+scan:
+  schemas:
+    - public
+    - mining
+    - environmental
+  excludeTables: []
+  maxTablesPerSchema: 500
+
+organisation:
+  name: "Test Mining Corp"
+  sector: mining
+  revenueAUD: 250000000
+  totalFTE: 1200
+  dataEngineers: 15
+  avgEngineerSalaryAUD: 160000
+  avgFTESalaryAUD: 110000
+  csrdInScope: true
+  canonicalInvestmentAUD: 2000000
+
+output:
+  directory: ./output
+  format: html
+  filename: dalc-report

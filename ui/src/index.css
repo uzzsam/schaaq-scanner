@@ -1,0 +1,78 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,300..800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-bg: #0A0F1A;
+  --color-sidebar: #0D1117;
+  --color-card: #111827;
+  --color-border: rgba(255,255,255,0.06);
+  --color-border-strong: rgba(255,255,255,0.1);
+  --color-hover: rgba(255,255,255,0.02);
+
+  --color-text-primary: #E5E7EB;
+  --color-text-secondary: #9CA3AF;
+  --color-text-muted: #6B7280;
+
+  --color-green: #10B981;
+  --color-green-bg: rgba(16,185,129,0.1);
+  --color-green-border: rgba(16,185,129,0.25);
+  --color-amber: #F59E0B;
+  --color-red: #EF4444;
+  --color-yellow: #FBBF24;
+  --color-indigo: #818CF8;
+  --color-cyan: #06B6D4;
+
+  --color-critical: #EF4444;
+  --color-major: #F59E0B;
+  --color-minor: #FBBF24;
+  --color-info: #10B981;
+
+  --font-display: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: var(--font-display);
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+/* Form inputs */
+input, select, textarea {
+  background: #1A1F2E;
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text-primary);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--color-green);
+  box-shadow: 0 0 0 2px rgba(16,185,129,0.15);
+}
+input::placeholder, textarea::placeholder {
+  color: var(--color-text-muted);
+}
+select option { background: #1A1F2E; }
+
+/* Utility */
+.font-mono { font-family: var(--font-mono); }
+.cost-text { font-family: var(--font-mono); color: var(--color-amber); letter-spacing: -0.02em; }
+.label-text { color: var(--color-text-secondary); font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }

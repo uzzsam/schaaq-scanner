@@ -1,0 +1,9 @@
+node_modules/
+dist/
+dist-electron/
+installer-output/
+data/
+data-test2/
+output/
+*.log
+.env

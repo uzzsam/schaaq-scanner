@@ -1,0 +1,219 @@
+﻿// =============================================================================
+// Transform Clarity Checks - Test Suite
+// =============================================================================
+
+import { describe, it, expect } from 'vitest';
+import type { TransformData, TransformMapping, TransformFinding } from '../../src/transforms/types';
+import {
+  TRANSFORM_CHECKS,
+  runTransformChecks,
+  sd1AliasCheck,
+  sd2TypeCoercionCheck,
+  sd3AggregationCheck,
+  sd4UnitConversionCheck,
+  sd5NullMaskingCheck,
+  ob1EntityMergingCheck,
+  ob2EntitySplittingCheck,
+  ob3CategoryFlatteningCheck,
+  ob4FanoutJoinCheck,
+} from '../../src/transforms/index';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function mapping(overrides: Partial<TransformMapping> = {}): TransformMapping {
+  return {
+    sourceTable: 'src_table',
+    sourceColumn: 'col',
+    sourceType: 'varchar',
+    targetTable: 'tgt_table',
+    targetColumn: 'col',
+    targetType: 'varchar',
+    transformRule: '',
+    notes: '',
+    ...overrides,
+  };
+}
+
+function buildData(mappings: TransformMapping[]): TransformData {
+  const targetToSources = new Map<string, TransformMapping[]>();
+  const sourceToTargets = new Map<string, TransformMapping[]>();
+  const sourceTableSet = new Set<string>();
+  const targetTableSet = new Set<string>();
+
+  for (const m of mappings) {
+    const tgtKey = __TGTKEY__.toLowerCase();
+    const srcKey = __SRCKEY__.toLowerCase();
+    if (\!targetToSources.has(tgtKey)) targetToSources.set(tgtKey, []);
+    targetToSources.get(tgtKey)\!.push(m);
+    if (\!sourceToTargets.has(srcKey)) sourceToTargets.set(srcKey, []);
+    sourceToTargets.get(srcKey)\!.push(m);
+    if (m.sourceTable) sourceTableSet.add(m.sourceTable);
+    if (m.targetTable) targetTableSet.add(m.targetTable);
+  }
+
+  return {
+    mappings,
+    sourceTables: Array.from(sourceTableSet).sort(),
+    targetTables: Array.from(targetTableSet).sort(),
+    totalMappings: mappings.length,
+    targetToSources,
+    sourceToTargets,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// TRANSFORM_CHECKS registry
+// ---------------------------------------------------------------------------
+
+describe('TRANSFORM_CHECKS', () => {
+  it('should contain exactly 9 checks', () => {
+    expect(TRANSFORM_CHECKS).toHaveLength(9);
+  });
+
+  it('should have unique IDs', () => {
+    const ids = TRANSFORM_CHECKS.map((c) => c.id);
+    expect(new Set(ids).size).toBe(9);
+  });
+
+  it('should include all expected check IDs', () => {
+    const ids = TRANSFORM_CHECKS.map((c) => c.id);
+    expect(ids).toContain('SD-1');
+    expect(ids).toContain('SD-2');
+    expect(ids).toContain('SD-3');
+    expect(ids).toContain('SD-4');
+    expect(ids).toContain('SD-5');
+    expect(ids).toContain('OB-1');
+    expect(ids).toContain('OB-2');
+    expect(ids).toContain('OB-3');
+    expect(ids).toContain('OB-4');
+  });
+
+  it('should have correct categories for each check', () => {
+    for (const check of TRANSFORM_CHECKS) {
+      if (check.id.startsWith('SD-')) {
+        expect(check.category).toBe('semantic-drift');
+      } else if (check.id.startsWith('OB-')) {
+        expect(check.category).toBe('ontological-break');
+      }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SD-1: Alias Misalignment
+// ---------------------------------------------------------------------------
+
+describe('SD-1: Alias Misalignment', () => {
+  it('should detect term conflict when source has revenue and target has income', () => {
+    const data = buildData([
+      mapping({ sourceColumn: 'total_revenue', targetColumn: 'total_income' }),
+    ]);
+    const findings = sd1AliasCheck.evaluate(data);
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].checkId).toBe('SD-1');
+    expect(findings[0].category).toBe('semantic-drift');
+    expect(findings[0].affectedMappings).toBe(1);
+    expect(findings[0].evidence).toHaveLength(1);
+    expect(findings[0].evidence[0].detail).toContain('revenue');
+    expect(findings[0].evidence[0].detail).toContain('income');
+  });
+
+  it('should detect conflict between customer and client', () => {
+    const data = buildData([
+      mapping({ sourceColumn: 'customer_name', targetColumn: 'client_name' }),
+    ]);
+    const findings = sd1AliasCheck.evaluate(data);
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].affectedMappings).toBe(1);
+    expect(findings[0].evidence[0].detail).toContain('customer');
+    expect(findings[0].evidence[0].detail).toContain('client');
+  });
+
+  it('should detect conflict between cost and expense', () => {
+    const data = buildData([
+      mapping({ sourceColumn: 'operating_cost', targetColumn: 'operating_expense' }),
+    ]);
+    const findings = sd1AliasCheck.evaluate(data);
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].evidence[0].detail).toContain('cost');
+    expect(findings[0].evidence[0].detail).toContain('expense');
+  });
+
+  it('should return no findings when column names do not conflict', () => {
+    const data = buildData([
+      mapping({ sourceColumn: 'first_name', targetColumn: 'last_name' }),
+      mapping({ sourceColumn: 'address', targetColumn: 'address' }),
+    ]);
+    const findings = sd1AliasCheck.evaluate(data);
+    expect(findings).toHaveLength(0);
+  });
+
+  it('should return no findings when source and target use the same term', () => {
+    const data = buildData([
+      mapping({ sourceColumn: 'total_revenue', targetColumn: 'monthly_revenue' }),
+    ]);
+    const findings = sd1AliasCheck.evaluate(data);
+    expect(findings).toHaveLength(0);
+  });
+
+  it('should count multiple affected mappings', () => {
+    const data = buildData([
+      mapping({ sourceColumn: 'revenue', targetColumn: 'income' }),
+      mapping({ sourceColumn: 'employee_id', targetColumn: 'staff_id' }),
+      mapping({ sourceColumn: 'site_code', targetColumn: 'location_code' }),
+    ]);
+    const findings = sd1AliasCheck.evaluate(data);
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].affectedMappings).toBe(3);
+    expect(findings[0].evidence).toHaveLength(3);
+  });
+
+  it('should handle camelCase column names', () => {
+    const data = buildData([
+      mapping({ sourceColumn: 'totalRevenue', targetColumn: 'totalIncome' }),
+    ]);
+    const findings = sd1AliasCheck.evaluate(data);
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].evidence[0].detail).toContain('revenue');
+    expect(findings[0].evidence[0].detail).toContain('income');
+  });
+
+  it('should set severity to critical for 10+ affected mappings', () => {
+    const mappings: TransformMapping[] = [];
+    for (let i = 0; i < 10; i++) {
+      mappings.push(mapping({
+        sourceColumn: __REVENUE_I__,
+        targetColumn: __INCOME_I__,
+      }));
+    }
+    const data = buildData(mappings);
+    const findings = sd1AliasCheck.evaluate(data);
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('critical');
+  });
+
+  it('should have correct finding structure', () => {
+    const data = buildData([
+      mapping({ sourceColumn: 'revenue', targetColumn: 'income' }),
+    ]);
+    const findings = sd1AliasCheck.evaluate(data);
+
+    expect(findings[0]).toMatchObject({
+      checkId: 'SD-1',
+      category: 'semantic-drift',
+      totalMappings: 1,
+      ratio: 1,
+    });
+    expect(findings[0].remediation).toBeTruthy();
+    expect(findings[0].costCategories.length).toBeGreaterThan(0);
+    expect(findings[0].costWeights).toBeDefined();
+  });
+});

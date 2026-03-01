@@ -1,0 +1,652 @@
+/**
+ * HTML Report Generator
+ *
+ * Produces a self-contained, McKinsey-quality HTML report from DALC engine results.
+ * - Pure CSS bar charts (no JavaScript, no chart libraries)
+ * - No external URLs (air-gap safe)
+ * - Print-friendly with @media print rules
+ * - Professional C-suite presentable design
+ * - Handlebars templating
+ */
+
+import Handlebars from 'handlebars';
+import type { DALCResult, CostVector, PropertyScore, YearProjection, FindingCostResult } from '../engine/types';
+import type { Finding } from '../checks/types';
+import type { ScoredFindings } from '../scoring/severity-scorer';
+
+// =============================================================================
+// Report Data — the shape passed to the Handlebars template
+// =============================================================================
+
+export interface ReportData {
+  organisationName: string;
+  sector: string;
+  generatedAt: string;
+  engineVersion: string;
+  source?: string; // 'database' | 'csv'
+
+  // Headline numbers
+  finalTotal: number;
+  baseTotal: number;
+  amplifiedTotal: number;
+  annualSaving: number;
+  paybackMonths: number;
+  overallMaturity: number;
+  canonicalInvestment: number;
+  fiveYearCumulativeSaving: number;
+
+  // Cost breakdown
+  finalCosts: CostVector;
+  costCategories: Array<{ name: string; value: number; percentage: number; color: string }>;
+
+  // Property scores
+  propertyScores: Array<{
+    propertyId: string;
+    name: string;
+    score: number;
+    maturityLabel: string;
+    totalCost: number;
+    barWidth: number;
+    barColor: string;
+  }>;
+
+  // Five-year projection
+  fiveYearProjection: Array<{
+    year: number;
+    doNothingCost: number;
+    withCanonicalCost: number;
+    cumulativeSaving: number;
+    doNothingBarWidth: number;
+    withCanonicalBarWidth: number;
+  }>;
+
+  // Findings detail
+  findings: Array<{
+    checkId: string;
+    property: number;
+    severity: string;
+    severityColor: string;
+    title: string;
+    description: string;
+    ratio: number;
+    ratioPercent: string;
+    affectedObjects: number;
+    totalObjects: number;
+    remediation: string;
+    rawScore: number;
+    costCategories: string[];
+  }>;
+
+  // Scanner stats
+  isCsvSource: boolean;
+  sourceLabel: string;
+  totalTables: number;
+  totalRowCount: number;
+  totalFindings: number;
+  criticalCount: number;
+  majorCount: number;
+  minorCount: number;
+  infoCount: number;
+}
+
+// =============================================================================
+// Cost category metadata
+// =============================================================================
+
+const CATEGORY_META: Record<string, { label: string; color: string }> = {
+  firefighting: { label: 'Firefighting', color: '#E74C3C' },
+  dataQuality: { label: 'Data Quality', color: '#F39C12' },
+  integration: { label: 'Integration', color: '#3498DB' },
+  productivity: { label: 'Productivity', color: '#9B59B6' },
+  regulatory: { label: 'Regulatory', color: '#1ABC9C' },
+};
+
+const SEVERITY_COLORS: Record<string, string> = {
+  critical: '#E74C3C',
+  major: '#F39C12',
+  minor: '#3498DB',
+  info: '#95A5A6',
+};
+
+const MATURITY_COLORS = ['#E74C3C', '#F39C12', '#F1C40F', '#2ECC71', '#27AE60'];
+
+// =============================================================================
+// Build ReportData from engine output + scanner findings
+// =============================================================================
+
+export function buildReportData(
+  result: DALCResult,
+  scored: ScoredFindings,
+  organisationName: string,
+  source?: string,
+): ReportData {
+  const costTotal = sumCostVector(result.finalCosts);
+
+  // Cost categories breakdown
+  const costCategories = Object.entries(CATEGORY_META).map(([key, meta]) => {
+    const value = result.finalCosts[key as keyof CostVector];
+    return {
+      name: meta.label,
+      value,
+      percentage: costTotal > 0 ? (value / costTotal) * 100 : 0,
+      color: meta.color,
+    };
+  });
+
+  // Property scores with bar chart data
+  const maxPropertyCost = Math.max(...result.propertyScores.map((p) => p.totalCost), 1);
+  const propertyScores = result.propertyScores.map((p) => ({
+    propertyId: p.propertyId,
+    name: p.name,
+    score: p.score,
+    maturityLabel: p.maturityLabel,
+    totalCost: p.totalCost,
+    barWidth: Math.min(100, (p.totalCost / maxPropertyCost) * 100),
+    barColor: MATURITY_COLORS[Math.min(4, Math.round(p.score))],
+  }));
+
+  // Five-year projection with bar chart data
+  const maxYearCost = Math.max(...result.fiveYearProjection.map((y) => y.doNothingCost), 1);
+  const fiveYearProjection = result.fiveYearProjection.map((y) => ({
+    year: y.year,
+    doNothingCost: y.doNothingCost,
+    withCanonicalCost: y.withCanonicalCost,
+    cumulativeSaving: y.cumulativeSaving,
+    doNothingBarWidth: Math.min(100, (y.doNothingCost / maxYearCost) * 100),
+    withCanonicalBarWidth: Math.min(100, (y.withCanonicalCost / maxYearCost) * 100),
+  }));
+
+  // Scanner findings detail
+  const findings = scored.findings.map((f) => ({
+    checkId: f.checkId,
+    property: f.property,
+    severity: f.severity,
+    severityColor: SEVERITY_COLORS[f.severity] ?? '#95A5A6',
+    title: f.title,
+    description: f.description,
+    ratio: f.ratio,
+    ratioPercent: (f.ratio * 100).toFixed(1),
+    affectedObjects: f.affectedObjects,
+    totalObjects: f.totalObjects,
+    remediation: f.remediation,
+    rawScore: Math.round(f.rawScore * 100) / 100,
+    costCategories: f.costCategories,
+  }));
+
+  // Severity counts
+  const criticalCount = scored.findings.filter((f) => f.severity === 'critical').length;
+  const majorCount = scored.findings.filter((f) => f.severity === 'major').length;
+  const minorCount = scored.findings.filter((f) => f.severity === 'minor').length;
+  const infoCount = scored.findings.filter((f) => f.severity === 'info').length;
+
+  return {
+    organisationName,
+    sector: result.input.sector,
+    generatedAt: new Date().toISOString(),
+    engineVersion: result.engineVersion,
+
+    finalTotal: result.finalTotal,
+    baseTotal: result.baseTotal,
+    amplifiedTotal: result.amplifiedTotal,
+    annualSaving: result.annualSaving,
+    paybackMonths: result.paybackMonths,
+    overallMaturity: result.overallMaturity,
+    canonicalInvestment: result.canonicalInvestment,
+    fiveYearCumulativeSaving: result.fiveYearCumulativeSaving,
+
+    finalCosts: result.finalCosts,
+    costCategories,
+
+    propertyScores,
+    fiveYearProjection,
+    findings,
+
+    isCsvSource: source === 'csv' || source === 'powerbi' || source === 'tableau' || source === 'pipeline',
+    source: source ?? 'database',
+    sourceLabel: source === 'powerbi' ? 'Power BI Template' : source === 'tableau' ? 'Tableau Workbook' : source === 'pipeline' ? 'Pipeline Analysis' : 'CSV/Excel Upload',
+    totalTables: scored.totalTables,
+    totalRowCount: scored.totalRowCount,
+    totalFindings: scored.findings.length,
+    criticalCount,
+    majorCount,
+    minorCount,
+    infoCount,
+  };
+}
+
+// =============================================================================
+// Handlebars Helpers
+// =============================================================================
+
+function registerHelpers(): void {
+  Handlebars.registerHelper('currency', (value: number) => {
+    if (value === undefined || value === null) return '$0';
+    if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
+    if (value >= 1_000) return `$${(value / 1_000).toFixed(0)}K`;
+    return `$${value.toFixed(0)}`;
+  });
+
+  Handlebars.registerHelper('currencyFull', (value: number) => {
+    if (value === undefined || value === null) return '$0';
+    return '$' + value.toLocaleString('en-AU', { maximumFractionDigits: 0 });
+  });
+
+  Handlebars.registerHelper('pct', (value: number) => {
+    if (value === undefined || value === null) return '0%';
+    return value.toFixed(1) + '%';
+  });
+
+  Handlebars.registerHelper('fixed1', (value: number) => {
+    if (value === undefined || value === null) return '0.0';
+    return value.toFixed(1);
+  });
+
+  Handlebars.registerHelper('fixed2', (value: number) => {
+    if (value === undefined || value === null) return '0.00';
+    return value.toFixed(2);
+  });
+
+  Handlebars.registerHelper('uppercase', (value: string) => {
+    return value ? value.toUpperCase() : '';
+  });
+
+  Handlebars.registerHelper('severityBadge', (severity: string) => {
+    const color = SEVERITY_COLORS[severity] ?? '#95A5A6';
+    return new Handlebars.SafeString(
+      `<span class="badge" style="background:${color}">${severity.toUpperCase()}</span>`
+    );
+  });
+}
+
+// =============================================================================
+// Utility
+// =============================================================================
+
+function sumCostVector(cv: CostVector): number {
+  return cv.firefighting + cv.dataQuality + cv.integration + cv.productivity + cv.regulatory;
+}
+
+// =============================================================================
+// HTML Template
+// =============================================================================
+
+const HTML_TEMPLATE = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DALC Report — {{organisationName}}</title>
+<style>
+/* =====================================================================
+   DALC Report — Self-contained CSS (no external dependencies)
+   ===================================================================== */
+:root {
+  --c-primary: #1a1a2e;
+  --c-accent: #e94560;
+  --c-accent2: #0f3460;
+  --c-bg: #ffffff;
+  --c-bg-alt: #f8f9fa;
+  --c-border: #dee2e6;
+  --c-text: #212529;
+  --c-text-muted: #6c757d;
+  --c-critical: #E74C3C;
+  --c-major: #F39C12;
+  --c-minor: #3498DB;
+  --c-info: #95A5A6;
+  --c-success: #27AE60;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  color: var(--c-text);
+  background: var(--c-bg);
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+/* Header */
+.header {
+  background: linear-gradient(135deg, var(--c-primary) 0%, var(--c-accent2) 100%);
+  color: #fff;
+  padding: 40px 0 32px;
+}
+.header h1 { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+.header .subtitle { font-size: 15px; opacity: 0.85; }
+.header .meta { margin-top: 12px; font-size: 12px; opacity: 0.7; }
+
+/* Sections */
+section { padding: 32px 0; border-bottom: 1px solid var(--c-border); }
+section:last-child { border-bottom: none; }
+h2 { font-size: 20px; font-weight: 700; color: var(--c-primary); margin-bottom: 16px; }
+h3 { font-size: 16px; font-weight: 600; color: var(--c-primary); margin-bottom: 12px; }
+
+/* Metric Cards */
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.metric-card {
+  background: var(--c-bg-alt);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+}
+.metric-card .label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--c-text-muted); margin-bottom: 4px; }
+.metric-card .value { font-size: 28px; font-weight: 700; color: var(--c-primary); }
+.metric-card .unit { font-size: 12px; color: var(--c-text-muted); }
+.metric-card.highlight { border-left: 4px solid var(--c-accent); }
+.metric-card.success { border-left: 4px solid var(--c-success); }
+
+/* Bar Charts */
+.bar-chart { margin: 12px 0; }
+.bar-row { display: flex; align-items: center; margin-bottom: 8px; }
+.bar-label { width: 180px; font-size: 13px; flex-shrink: 0; }
+.bar-track { flex: 1; height: 24px; background: var(--c-bg-alt); border-radius: 4px; overflow: hidden; position: relative; }
+.bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s; display: flex; align-items: center; padding-left: 8px; }
+.bar-fill span { font-size: 11px; color: #fff; font-weight: 600; white-space: nowrap; }
+.bar-value { width: 100px; text-align: right; font-size: 13px; font-weight: 600; padding-left: 8px; }
+
+/* Dual Bars (projection) */
+.dual-bar-row { margin-bottom: 12px; }
+.dual-bar-row .year-label { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.dual-bar-pair { display: flex; flex-direction: column; gap: 2px; }
+.dual-bar-pair .bar-track { height: 18px; }
+
+/* Legend */
+.legend { display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
+.legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.legend-dot { width: 12px; height: 12px; border-radius: 2px; }
+
+/* Badge */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Findings Table */
+.findings-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+.findings-table th {
+  background: var(--c-primary);
+  color: #fff;
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.findings-table td { padding: 10px 12px; border-bottom: 1px solid var(--c-border); font-size: 13px; vertical-align: top; }
+.findings-table tr:nth-child(even) { background: var(--c-bg-alt); }
+.findings-table .remediation { font-size: 12px; color: var(--c-text-muted); margin-top: 4px; font-style: italic; }
+
+/* Score indicator */
+.score-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff;
+}
+
+/* Summary badges */
+.severity-summary { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.severity-summary .count-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--c-bg-alt);
+  border: 1px solid var(--c-border);
+}
+.severity-summary .count-badge .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+/* Footer */
+.footer {
+  padding: 24px 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--c-text-muted);
+  border-top: 1px solid var(--c-border);
+}
+
+/* =====================================================================
+   Print styles
+   ===================================================================== */
+@media print {
+  body { font-size: 11px; }
+  .container { max-width: 100%; padding: 0; }
+  .header { padding: 20px 0 16px; }
+  section { padding: 16px 0; break-inside: avoid; }
+  .metrics { grid-template-columns: repeat(4, 1fr); }
+  .metric-card { padding: 12px; }
+  .metric-card .value { font-size: 20px; }
+  .findings-table { font-size: 11px; }
+  .findings-table th { padding: 6px 8px; }
+  .findings-table td { padding: 6px 8px; }
+  .bar-track { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .bar-fill { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .badge { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .score-indicator { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .header { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .findings-table th { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="container">
+    <h1>Data Architecture Loss Calculator</h1>
+    <div class="subtitle">{{organisationName}} — {{uppercase sector}} Sector Assessment</div>
+    <div class="meta">Engine {{engineVersion}} &middot; Generated {{generatedAt}} &middot; {{totalTables}} tables analysed{{#if isCsvSource}} &middot; Source: {{sourceLabel}}{{/if}}</div>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- Executive Summary -->
+<section>
+  <h2>Executive Summary</h2>
+  <div class="metrics">
+    <div class="metric-card highlight">
+      <div class="label">Annual Data Disorder Cost</div>
+      <div class="value">{{currency finalTotal}}</div>
+      <div class="unit">per year (amplified)</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">Base Cost (Pre-Amplification)</div>
+      <div class="value">{{currency baseTotal}}</div>
+      <div class="unit">direct costs only</div>
+    </div>
+    <div class="metric-card success">
+      <div class="label">Potential Annual Saving</div>
+      <div class="value">{{currency annualSaving}}</div>
+      <div class="unit">with canonical architecture</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">Payback Period</div>
+      <div class="value">{{fixed1 paybackMonths}}</div>
+      <div class="unit">months</div>
+    </div>
+  </div>
+  <div class="metrics">
+    <div class="metric-card">
+      <div class="label">Overall Maturity</div>
+      <div class="value">{{fixed1 overallMaturity}}<span style="font-size:14px">/4</span></div>
+    </div>
+    <div class="metric-card">
+      <div class="label">Canonical Investment</div>
+      <div class="value">{{currency canonicalInvestment}}</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">5-Year Cumulative Saving</div>
+      <div class="value">{{currency fiveYearCumulativeSaving}}</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">Total Findings</div>
+      <div class="value">{{totalFindings}}</div>
+    </div>
+  </div>
+
+  <div class="severity-summary">
+    <div class="count-badge"><div class="dot" style="background:var(--c-critical)"></div>{{criticalCount}} Critical</div>
+    <div class="count-badge"><div class="dot" style="background:var(--c-major)"></div>{{majorCount}} Major</div>
+    <div class="count-badge"><div class="dot" style="background:var(--c-minor)"></div>{{minorCount}} Minor</div>
+    <div class="count-badge"><div class="dot" style="background:var(--c-info)"></div>{{infoCount}} Info</div>
+  </div>
+</section>
+
+<!-- Cost Breakdown -->
+<section>
+  <h2>Cost Breakdown by Category</h2>
+  <div class="bar-chart">
+    {{#each costCategories}}
+    <div class="bar-row">
+      <div class="bar-label">{{name}}</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:{{percentage}}%;background:{{color}}">
+          <span>{{pct percentage}}</span>
+        </div>
+      </div>
+      <div class="bar-value">{{currency value}}</div>
+    </div>
+    {{/each}}
+  </div>
+</section>
+
+<!-- Property Scores -->
+<section>
+  <h2>Property Maturity Scores</h2>
+  <div class="bar-chart">
+    {{#each propertyScores}}
+    <div class="bar-row">
+      <div class="bar-label" title="{{propertyId}}">{{name}}</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:{{barWidth}}%;background:{{barColor}}">
+          <span>{{fixed1 score}}/4 — {{maturityLabel}}</span>
+        </div>
+      </div>
+      <div class="bar-value">{{currency totalCost}}</div>
+    </div>
+    {{/each}}
+  </div>
+</section>
+
+<!-- Five-Year Projection -->
+<section>
+  <h2>Five-Year Cost Projection</h2>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--c-accent)"></div>Do Nothing</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--c-success)"></div>With Canonical Architecture</div>
+  </div>
+  {{#each fiveYearProjection}}
+  <div class="dual-bar-row">
+    <div class="year-label">Year {{year}}</div>
+    <div class="dual-bar-pair">
+      <div class="bar-row" style="margin-bottom:2px">
+        <div class="bar-track">
+          <div class="bar-fill" style="width:{{doNothingBarWidth}}%;background:var(--c-accent)">
+            <span>{{currency doNothingCost}}</span>
+          </div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-track">
+          <div class="bar-fill" style="width:{{withCanonicalBarWidth}}%;background:var(--c-success)">
+            <span>{{currency withCanonicalCost}}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {{/each}}
+</section>
+
+<!-- Scanner Findings Detail -->
+<section>
+  <h2>Scanner Findings Detail</h2>
+  <table class="findings-table">
+    <thead>
+      <tr>
+        <th style="width:40px">P</th>
+        <th style="width:80px">Severity</th>
+        <th>Finding</th>
+        <th style="width:90px">Affected</th>
+        <th style="width:70px">Score</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each findings}}
+      <tr>
+        <td><strong>P{{property}}</strong></td>
+        <td>{{{severityBadge severity}}}</td>
+        <td>
+          <strong>{{title}}</strong><br>
+          {{description}}
+          <div class="remediation">{{remediation}}</div>
+        </td>
+        <td>{{affectedObjects}}/{{totalObjects}}<br><small>({{ratioPercent}}%)</small></td>
+        <td>{{fixed2 rawScore}}</td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+</section>
+
+</div>
+
+<!-- Footer -->
+<div class="footer">
+  <div class="container">
+    DALC Scanner &middot; {{engineVersion}} &middot; Report generated {{generatedAt}}<br>
+    Confidential — prepared for {{organisationName}}
+  </div>
+</div>
+
+</body>
+</html>`;
+
+// =============================================================================
+// Public API
+// =============================================================================
+
+/**
+ * Generate a self-contained HTML report string.
+ */
+export function generateReport(data: ReportData): string {
+  registerHelpers();
+  const template = Handlebars.compile(HTML_TEMPLATE);
+  return template(data);
+}
+
+/**
+ * Convenience: build report data and generate HTML in one step.
+ */
+export function generateReportFromResult(
+  result: DALCResult,
+  scored: ScoredFindings,
+  organisationName: string,
+  source?: string,
+): string {
+  const data = buildReportData(result, scored, organisationName, source);
+  return generateReport(data);
+}

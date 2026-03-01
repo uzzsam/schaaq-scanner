@@ -1,0 +1,10 @@
+const fs = require("fs");
+const jsonPath = "C:/Users/Lenovo/OneDrive/Desktop/projects/dalc-scanner/tests/transforms/_remaining2.json";
+const outPath = "C:/Users/Lenovo/OneDrive/Desktop/projects/dalc-scanner/tests/transforms/checks.test.ts";
+const content = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
+const existing = fs.readFileSync(outPath, "utf8");
+fs.writeFileSync(outPath, existing + content, "utf8");
+const final_ = existing + content;
+const describeCount = (final_.match(/describe\(/g) || []).length;
+const itCount = (final_.match(/  it\(/g) || []).length;
+console.log("Final file:", final_.length, "chars,", describeCount, "describe blocks,", itCount, "it blocks");

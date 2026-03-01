@@ -1,0 +1,21 @@
+hole_id,SampleID,sample_from_m,sample_to_m,assay_au_ppm,assay_fe_pct,assay_cu_pct,SampleDate,lab_name,sample_type,status,Notes
+DH-001,S-10001,0.0,1.5,2.34,58.2,0.12,2025-03-15,ALS Perth,core,approved,
+DH-001,S-10002,1.5,3.0,1.87,61.4,0.09,2025-03-15,ALS Perth,core,approved,
+DH-001,S-10003,3.0,4.5,0.45,52.1,,2025-03-15,ALS Perth,core,approved,Below detection limit
+DH-001,S-10004,4.5,6.0,,,,2025-03-16,,,pending,Awaiting lab results
+DH-002,S-10005,0.0,2.0,3.12,63.7,0.21,15/03/2025,SGS Townsville,RC,Approved,
+DH-002,S-10006,2.0,4.0,2.78,59.8,0.18,15/03/2025,SGS Townsville,RC,Approved,
+DH-002,S-10007,4.0,6.0,0.92,45.3,0.05,16-Mar-25,SGS Townsville,RC,approved,Low grade zone
+DH-003,S-10008,0.0,1.0,4.56,67.1,0.34,2025-03-17,ALS Perth,DD,approved,High grade intercept
+DH-003,S-10009,1.0,2.0,5.23,69.4,0.41,2025-03-17,ALS Perth,DD,APPROVED,Visible gold
+DH-003,S-10010,2.0,3.0,3.89,64.2,0.29,2025-03-17,ALS Perth,DD,approved,
+DH-003,,3.0,4.0,,,,,,,pending,Sample lost in transport
+DH-004,S-10012,0.0,1.5,0.12,38.9,0.02,2025-03-18,Intertek,core,rejected,Contaminated sample
+DH-004,S-10013,1.5,3.0,0.08,35.2,0.01,2025-03-18,Intertek,CORE,approved,Waste rock
+DH-004,S-10014,3.0,4.5,1.45,55.6,0.11,2025-03-18,Intertek,core,approved,
+DH-005,S-10015,0.0,2.0,2.67,,0.19,2025-03-19,ALS Perth,RC,approved,Fe analysis pending
+DH-005,S-10016,2.0,4.0,3.01,60.8,0.22,2025-03-19,ALS Perth,RC,approved,
+DH-005,S-10017,4.0,6.0,,,,,,,pending,Not yet sampled
+DH-006,S-10018,0.0,1.0,6.78,71.2,0.52,20250320,ALS Perth,DD,approved,Bonanza grade
+DH-006,S-10019,1.0,2.0,4.12,65.8,0.37,20250320,ALS Perth,DD,approved,
+DH-006,S-10020,2.0,3.0,2.34,58.9,0.15,20250320,ALS Perth,DD,approved,

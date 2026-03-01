@@ -1,0 +1,118 @@
+{
+  "name": "dalc-scanner",
+  "version": "0.1.0",
+  "description": "DALC Phase 2 — Standalone diagnostic scanner for data architecture cost assessment",
+  "private": true,
+  "type": "module",
+  "main": "dist-electron/main.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "bin": {
+    "dalc-scanner": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:smoke": "vitest run tests/engine.smoke.test.ts",
+    "test:adapter": "vitest run tests/adapters/postgres.unit.test.ts",
+    "test:adapter:integration": "vitest run tests/adapters/postgres.test.ts",
+    "test:checks": "vitest run tests/checks/",
+    "test:scoring": "vitest run tests/scoring/",
+    "test:config": "vitest run tests/config/",
+    "test:report": "vitest run tests/report/",
+    "test:cli": "vitest run tests/cli/",
+    "test:integration": "vitest run tests/integration/pipeline.test.ts tests/integration/cross-validation.test.ts",
+    "test:integration:docker": "vitest run tests/integration/docker-scan.test.ts",
+    "lint": "tsc --noEmit",
+    "scan": "tsx src/cli.ts",
+    "scan:dry": "tsx src/cli.ts --dry-run --verbose",
+    "ui:dev": "cd ui && npm run dev",
+    "ui:build": "cd ui && npm run build",
+    "build:all": "npm run build && cd ui && npm run build && cd ..",
+    "build:electron": "tsc -p electron/tsconfig.json && cp electron/esm-resolve-hook.js dist-electron/esm-resolve-hook.js",
+    "build:full": "npm run build:all && npm run build:electron",
+    "dev": "concurrently \"npx tsx src/cli.ts ui --port 3000\" \"cd ui && npx vite --port 5173\"",
+    "start": "npx tsx src/cli.ts ui --port 3000",
+    "start:prod": "npm run build:all && npx tsx src/cli.ts ui --port 3000",
+    "electron:dev": "npm run build:full && npx electron-rebuild && electron .",
+    "pack": "npm run build:full && npx electron-rebuild --force && electron-builder --win --dir --config.npmRebuild=false",
+    "dist": "npm run build:full && npx electron-rebuild --force && electron-builder --win --config.npmRebuild=false"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "better-sqlite3": "^12.6.2",
+    "commander": "^12.1.0",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "fast-xml-parser": "^5.4.1",
+    "handlebars": "^4.7.8",
+    "js-yaml": "^4.1.0",
+    "multer": "^2.0.2",
+    "papaparse": "^5.5.3",
+    "pg": "^8.13.0",
+    "tsx": "^4.19.0",
+    "uuid": "^13.0.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.3",
+    "@testcontainers/postgresql": "^11.12.0",
+    "@types/adm-zip": "^0.5.7",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/js-yaml": "^4.0.9",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^22.0.0",
+    "@types/papaparse": "^5.5.2",
+    "@types/pg": "^8.11.0",
+    "@types/supertest": "^6.0.3",
+    "@types/uuid": "^10.0.0",
+    "concurrently": "^9.2.1",
+    "electron": "^40.6.1",
+    "electron-builder": "^26.8.1",
+    "supertest": "^7.2.2",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "build": {
+    "appId": "com.schaaq.scanner",
+    "productName": "Schaaq Scanner",
+    "copyright": "Copyright © 2026 Schaaq",
+    "asar": false,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "schaaq.ico",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "schaaq.ico",
+      "uninstallerIcon": "schaaq.ico",
+      "installerHeaderIcon": "schaaq.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Schaaq Scanner"
+    },
+    "directories": {
+      "output": "installer-output"
+    },
+    "files": [
+      "dist-electron/**/*",
+      "dist/**/*",
+      "ui/dist/**/*",
+      "schaaq.ico"
+    ],
+    "npmRebuild": true
+  }
+}
