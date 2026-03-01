@@ -9,6 +9,7 @@ import { Repository } from './db/repository';
 import { ScanRunner, type ScanProgress } from './scan-runner';
 import { projectRoutes } from './routes/projects';
 import { scanRoutes } from './routes/scans';
+import { apiKeyAuth } from './middleware/auth';
 import { dashboardRoutes } from './routes/dashboard';
 
 export interface ServerConfig {
@@ -73,6 +74,9 @@ export function createServer(config: ServerConfig): {
   }));
   app.use(helmet());
   app.use(express.json());
+
+  // API key auth (optional — only active when DALC_API_KEY is set)
+  app.use('/api', apiKeyAuth);
 
   // --- API Routes ---
   app.get('/api/health', (_req, res) => {
