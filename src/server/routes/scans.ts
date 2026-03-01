@@ -20,6 +20,11 @@ import { safeError } from '../middleware/safe-error';
 import { safeJsonParse } from '../../utils/safe-json';
 import { validateBody, validateQuery } from '../middleware/validate';
 import {
+  validateUploadedFiles,
+  SCHEMA_UPLOAD_CONFIG,
+  PIPELINE_UPLOAD_CONFIG,
+} from '../middleware/validate-upload';
+import {
   triggerScanSchema,
   uploadScanBodySchema,
   pipelineUploadBodySchema,
@@ -29,7 +34,7 @@ import {
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 100 * 1024 * 1024, files: 50 },
+  limits: { fileSize: 50 * 1024 * 1024, files: 50 },
   fileFilter: (_req, file, cb) => {
     const allowed = ['.csv', '.tsv', '.xlsx', '.xls', '.pbit', '.twb', '.twbx'];
     const ext = file.originalname.split('.').pop()?.toLowerCase();
@@ -43,7 +48,7 @@ const upload = multer({
 
 const pipelineUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 200 * 1024 * 1024, files: 10 },
+  limits: { fileSize: 50 * 1024 * 1024, files: 10 },
   fileFilter: (_req, file, cb) => {
     const allowed = ['.csv', '.tsv', '.json'];
     const ext = file.originalname.split('.').pop()?.toLowerCase();
@@ -169,7 +174,7 @@ export function scanRoutes(
   });
 
   // Upload CSV/Excel/BI files and trigger a scan
-  router.post('/upload', upload.array('files', 50), validateBody(uploadScanBodySchema), async (req, res) => {
+  router.post('/upload', upload.array('files', 50), validateUploadedFiles(SCHEMA_UPLOAD_CONFIG), validateBody(uploadScanBodySchema), async (req, res) => {
     try {
       const { projectId } = req.body;
 
@@ -254,7 +259,7 @@ export function scanRoutes(
   });
 
   // Upload transform mapping files and run transform checks against a scan
-  router.post('/:id/transform-upload', upload.array('files', 20), async (req, res) => {
+  router.post('/:id/transform-upload', upload.array('files', 20), validateUploadedFiles(SCHEMA_UPLOAD_CONFIG), async (req, res) => {
     try {
       const scanId = req.params.id as string;
       const scan = repo.getScan(scanId);
@@ -327,7 +332,7 @@ export function scanRoutes(
   });
 
   // Upload pipeline mapping files and run pipeline checks
-  router.post('/:id/pipeline-upload', pipelineUpload.array('files', 10), validateBody(pipelineUploadBodySchema), async (req, res) => {
+  router.post('/:id/pipeline-upload', pipelineUpload.array('files', 10), validateUploadedFiles(PIPELINE_UPLOAD_CONFIG), validateBody(pipelineUploadBodySchema), async (req, res) => {
     try {
       const scanId = req.params.id as string;
       const scan = repo.getScan(scanId);
