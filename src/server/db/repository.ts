@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3';
 import { v4 as uuid } from 'uuid';
 import { encrypt, decrypt } from './crypto';
+import { safeJsonParse } from '../../utils/safe-json';
 
 // --- Project types ---
 export interface ProjectRow {
@@ -360,9 +361,9 @@ export class Repository {
 
     return rows.map(r => ({
       ...r,
-      evidence: JSON.parse(r.evidence_json ?? '[]'),
-      costCategories: JSON.parse(r.cost_categories_json ?? '[]'),
-      costWeights: JSON.parse(r.cost_weights_json ?? '{}'),
+      evidence: safeJsonParse(r.evidence_json ?? '[]', [], 'scan_findings.evidence_json'),
+      costCategories: safeJsonParse(r.cost_categories_json ?? '[]', [], 'scan_findings.cost_categories_json'),
+      costWeights: safeJsonParse(r.cost_weights_json ?? '{}', {}, 'scan_findings.cost_weights_json'),
     }));
   }
 
@@ -373,9 +374,9 @@ export class Repository {
 
     return rows.map(r => ({
       ...r,
-      evidence: JSON.parse(r.evidence_json ?? '[]'),
-      costCategories: JSON.parse(r.cost_categories_json ?? '[]'),
-      costWeights: JSON.parse(r.cost_weights_json ?? '{}'),
+      evidence: safeJsonParse(r.evidence_json ?? '[]', [], 'scan_findings.evidence_json'),
+      costCategories: safeJsonParse(r.cost_categories_json ?? '[]', [], 'scan_findings.cost_categories_json'),
+      costWeights: safeJsonParse(r.cost_weights_json ?? '{}', {}, 'scan_findings.cost_weights_json'),
     }));
   }
 
@@ -416,9 +417,9 @@ export class Repository {
 
     return rows.map(r => ({
       ...r,
-      evidence: JSON.parse(r.evidence_json ?? '[]'),
-      costCategories: JSON.parse(r.cost_categories_json ?? '[]'),
-      costWeights: JSON.parse(r.cost_weights_json ?? '{}'),
+      evidence: safeJsonParse(r.evidence_json ?? '[]', [], 'transform_findings.evidence_json'),
+      costCategories: safeJsonParse(r.cost_categories_json ?? '[]', [], 'transform_findings.cost_categories_json'),
+      costWeights: safeJsonParse(r.cost_weights_json ?? '{}', {}, 'transform_findings.cost_weights_json'),
     }));
   }
 
@@ -429,9 +430,9 @@ export class Repository {
 
     return rows.map(r => ({
       ...r,
-      evidence: JSON.parse(r.evidence_json ?? '[]'),
-      costCategories: JSON.parse(r.cost_categories_json ?? '[]'),
-      costWeights: JSON.parse(r.cost_weights_json ?? '{}'),
+      evidence: safeJsonParse(r.evidence_json ?? '[]', [], 'transform_findings.evidence_json'),
+      costCategories: safeJsonParse(r.cost_categories_json ?? '[]', [], 'transform_findings.cost_categories_json'),
+      costWeights: safeJsonParse(r.cost_weights_json ?? '{}', {}, 'transform_findings.cost_weights_json'),
     }));
   }
 
@@ -489,8 +490,8 @@ export class Repository {
     if (!row) return null;
     return {
       ...row,
-      mappings: JSON.parse(row.mappings_json),
-      metadata: JSON.parse(row.metadata_json ?? '{}'),
+      mappings: safeJsonParse(row.mappings_json, [], 'pipeline_mappings.mappings_json'),
+      metadata: safeJsonParse(row.metadata_json ?? '{}', {}, 'pipeline_mappings.metadata_json'),
     };
   }
 

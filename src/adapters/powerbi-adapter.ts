@@ -109,7 +109,16 @@ export function parsePowerBITemplate(fileBuffer: Buffer): SchemaData {
 
   // Clean null bytes and control characters from Microsoft JSON serialisation
   const cleaned = schemaContent.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
-  const modelSchema: DataModelSchema = JSON.parse(cleaned);
+
+  let modelSchema: DataModelSchema;
+  try {
+    modelSchema = JSON.parse(cleaned);
+  } catch {
+    throw new Error(
+      'Invalid Power BI template: DataModelSchema is not valid JSON. ' +
+      'The file may be corrupted — please re-export from Power BI Desktop.'
+    );
+  }
 
   return convertPbiToSchemaData(modelSchema);
 }

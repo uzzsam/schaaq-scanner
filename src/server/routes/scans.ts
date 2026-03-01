@@ -17,6 +17,7 @@ import { checkLineageGaps } from '../../checks/p4-lineage-gaps';
 import type { SchemaData } from '../../adapters/types';
 import type { PipelineMapping } from '../../types/pipeline';
 import { safeError } from '../middleware/safe-error';
+import { safeJsonParse } from '../../utils/safe-json';
 import { validateBody, validateQuery } from '../middleware/validate';
 import {
   triggerScanSchema,
@@ -101,7 +102,12 @@ export function scanRoutes(
         res.status(404).json({ error: 'No results yet' });
         return;
       }
-      res.json(JSON.parse(scan.engine_result_json));
+      const result = safeJsonParse(scan.engine_result_json, null, 'scans.engine_result_json');
+      if (result === null) {
+        res.status(500).json({ error: 'Engine result data is corrupted' });
+        return;
+      }
+      res.json(result);
     } catch (err: any) {
       res.status(500).json({ error: safeError(err, 'GET /api/scans/:id/result') });
     }
@@ -144,7 +150,7 @@ export function scanRoutes(
               username: project.db_username ?? undefined,
               password: project.db_password ?? undefined,
               ssl: project.db_ssl === 1,
-              schemas: JSON.parse(project.db_schemas ?? '["public"]'),
+              schemas: safeJsonParse<string[]>(project.db_schemas ?? '["public"]', ['public'], 'projects.db_schemas'),
               excludeTables: [],
               maxTablesPerSchema: 500,
             });
@@ -356,7 +362,15 @@ export function scanRoutes(
           // Merge multiple OL files into one array and parse
           const allEvents: unknown[] = [];
           for (const f of uploadedFiles) {
-            const parsed = JSON.parse(f.buffer.toString('utf-8'));
+            let parsed: unknown;
+            try {
+              parsed = JSON.parse(f.buffer.toString('utf-8'));
+            } catch {
+              res.status(400).json({
+                error: `Invalid JSON in uploaded file: ${f.originalname}`,
+              });
+              return;
+            }
             if (Array.isArray(parsed)) {
               allEvents.push(...parsed);
             } else {
@@ -463,8 +477,12 @@ export function scanRoutes(
         return;
       }
 
-      const engineResult = JSON.parse(scan.engine_result_json!);
-      const configSnapshot = JSON.parse(scan.config_snapshot);
+      const engineResult = safeJsonParse<any>(scan.engine_result_json!, null, 'scans.engine_result_json');
+      const configSnapshot = safeJsonParse<any>(scan.config_snapshot, null, 'scans.config_snapshot');
+      if (!engineResult || !configSnapshot) {
+        res.status(500).json({ error: 'Scan result data is corrupted' });
+        return;
+      }
 
       // Reconstruct a ScoredFindings-like object for the report generator
       const findings = repo.getFindings(scan.id);
@@ -518,7 +536,7 @@ function getFileType(filename: string): 'csv' | 'powerbi' | 'tableau' {
 }
 
 function buildScannerConfig(project: ProjectRow): ScannerConfig {
-  const thresholds = JSON.parse(project.thresholds_json ?? '{}');
+  const thresholds: any = safeJsonParse(project.thresholds_json ?? '{}', {}, 'projects.thresholds_json');
 
   return {
     organisation: {
