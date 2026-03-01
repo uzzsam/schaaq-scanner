@@ -110,7 +110,12 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
       database: this.config.database,
       user: this.config.username,
       password: this.config.password,
-      ssl: this.config.ssl ? { rejectUnauthorized: false } : false,
+      ssl: this.config.ssl
+        ? {
+            rejectUnauthorized: true,
+            ...(this.config.sslCaCert ? { ca: this.config.sslCaCert } : {}),
+          }
+        : false,
     };
   }
 

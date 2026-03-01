@@ -160,6 +160,7 @@ export interface DatabaseAdapterConfig {
   username?: string;
   password?: string;
   ssl?: boolean;
+  sslCaCert?: string;             // PEM-encoded CA certificate for SSL verification
   schemas: string[];              // Which schemas to scan
   excludeTables: string[];        // Regex patterns to exclude
   maxTablesPerSchema: number;     // Safety limit
