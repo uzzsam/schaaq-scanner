@@ -7,7 +7,7 @@
 // =============================================================================
 
 import Papa from 'papaparse';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import type {
   SchemaData,
   TableInfo,
@@ -50,6 +50,8 @@ const INTEGER_RE = /^-?\d+$/;
 const DECIMAL_RE = /^-?\d+\.\d+$/;
 const BOOLEAN_RE = /^(true|false|yes|no|0|1)$/i;
 
+const NULL_STRINGS = new Set(['null', 'NULL', 'None', 'none', 'N/A', 'n/a', 'NA', '', 'undefined']);
+
 // ---------------------------------------------------------------------------
 // Core: parse uploaded files into SchemaData
 // ---------------------------------------------------------------------------
@@ -69,14 +71,14 @@ export async function parseCsvFiles(files: CsvFile[]): Promise<CsvParseResult> {
   // Collect all table names first for FK detection later
   const allTableNames = new Set<string>();
   for (const file of files) {
-    const sheets = extractSheets(file);
+    const sheets = await extractSheets(file);
     for (const sheet of sheets) {
       allTableNames.add(sheet.tableName);
     }
   }
 
   for (const file of files) {
-    const sheets = extractSheets(file);
+    const sheets = await extractSheets(file);
 
     for (const { tableName, headers, rows } of sheets) {
       if (headers.length === 0) {
@@ -114,7 +116,9 @@ export async function parseCsvFiles(files: CsvFile[]): Promise<CsvParseResult> {
       for (let ordinal = 0; ordinal < headers.length; ordinal++) {
         const colName = headers[ordinal];
         const colValues = rows.map((r) => r[colName]);
-        const nonNull = colValues.filter((v) => v !== null && v !== undefined && String(v).trim() !== '');
+        const nonNull = colValues.filter(
+          (v) => v !== null && v !== undefined && !NULL_STRINGS.has(String(v).trim()),
+        );
         const nullCount = colValues.length - nonNull.length;
         const nullFraction = rowCount > 0 ? nullCount / rowCount : 0;
 
@@ -232,7 +236,7 @@ interface SheetData {
   rows: Record<string, unknown>[];
 }
 
-function extractSheets(file: CsvFile): SheetData[] {
+async function extractSheets(file: CsvFile): Promise<SheetData[]> {
   const ext = file.originalname.split('.').pop()?.toLowerCase() ?? '';
 
   if (ext === 'csv' || ext === 'tsv') {
@@ -240,7 +244,7 @@ function extractSheets(file: CsvFile): SheetData[] {
   }
 
   if (ext === 'xlsx' || ext === 'xls') {
-    return parseExcelBuffer(file);
+    return await parseExcelBuffer(file);
   }
 
   // Fallback: try CSV parse
@@ -262,31 +266,89 @@ function parseCsvBuffer(file: CsvFile): SheetData {
   return { tableName, headers, rows };
 }
 
-function parseExcelBuffer(file: CsvFile): SheetData[] {
-  const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+/**
+ * Extract a usable primitive value from an ExcelJS cell.
+ * ExcelJS cell values can be objects (dates, rich text, formulas, hyperlinks, errors)
+ * as well as plain primitives. We normalise everything to string | number | boolean | null.
+ */
+function extractCellValue(value: ExcelJS.CellValue): string | number | boolean | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
+  if (value instanceof Date) return value.toISOString();
+
+  // ExcelJS rich text: { richText: [{text: '...', ...}, ...] }
+  if (typeof value === 'object' && 'richText' in value && Array.isArray((value as { richText: unknown[] }).richText)) {
+    return ((value as { richText: { text: string }[] }).richText)
+      .map((segment) => segment.text)
+      .join('');
+  }
+
+  // ExcelJS formula result: { formula: '...', result: ... }
+  if (typeof value === 'object' && 'result' in value) {
+    const result = (value as { result: unknown }).result;
+    if (result === null || result === undefined) return null;
+    if (result instanceof Date) return result.toISOString();
+    if (typeof result === 'string' || typeof result === 'number' || typeof result === 'boolean') return result;
+    return String(result);
+  }
+
+  // ExcelJS hyperlink: { text: '...', hyperlink: '...' }
+  if (typeof value === 'object' && 'text' in value) {
+    return String((value as { text: unknown }).text);
+  }
+
+  // ExcelJS error: { error: { message: '...' } } — treat as null
+  if (typeof value === 'object' && 'error' in value) {
+    return null;
+  }
+
+  // Fallback: stringify anything else
+  return String(value);
+}
+
+async function parseExcelBuffer(file: CsvFile): Promise<SheetData[]> {
+  const workbook = new ExcelJS.Workbook();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await workbook.xlsx.load(file.buffer as any);
   const sheets: SheetData[] = [];
 
-  for (const sheetName of workbook.SheetNames) {
-    const ws = workbook.Sheets[sheetName];
-    const jsonRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' });
+  for (const worksheet of workbook.worksheets) {
+    if (worksheet.rowCount < 2) continue; // need at least header + one data row
 
-    if (jsonRows.length === 0) continue;
-
-    const headers = Object.keys(jsonRows[0]);
-    // Sanitise header names
-    const cleanHeaders = headers.map((h) => sanitiseColumnName(String(h)));
-
-    const rows = jsonRows.map((row) => {
-      const clean: Record<string, unknown> = {};
-      for (let i = 0; i < headers.length; i++) {
-        clean[cleanHeaders[i]] = row[headers[i]];
-      }
-      return clean;
+    // Row 1 = headers
+    const headerRow = worksheet.getRow(1);
+    const rawHeaders: string[] = [];
+    headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      // Pad with empty strings if there are gaps
+      while (rawHeaders.length < colNumber - 1) rawHeaders.push('');
+      rawHeaders.push(cell.value != null ? String(cell.value) : '');
     });
 
+    if (rawHeaders.length === 0) continue;
+    const cleanHeaders = rawHeaders.map((h) => sanitiseColumnName(h));
+
+    // Data rows (row 2 onward)
+    const rows: Record<string, unknown>[] = [];
+    for (let rowIdx = 2; rowIdx <= worksheet.rowCount; rowIdx++) {
+      const row = worksheet.getRow(rowIdx);
+
+      // Skip completely empty rows
+      if (row.actualCellCount === 0) continue;
+
+      const record: Record<string, unknown> = {};
+      for (let colIdx = 0; colIdx < cleanHeaders.length; colIdx++) {
+        const cell = row.getCell(colIdx + 1); // ExcelJS is 1-indexed
+        const extracted = extractCellValue(cell.value);
+        record[cleanHeaders[colIdx]] = extracted !== null ? extracted : '';
+      }
+      rows.push(record);
+    }
+
+    if (rows.length === 0) continue;
+
     const baseName = sanitiseTableName(file.originalname);
-    const tableName = workbook.SheetNames.length > 1
-      ? `${baseName}_${sanitiseTableName(sheetName)}`
+    const tableName = workbook.worksheets.length > 1
+      ? `${baseName}_${sanitiseTableName(worksheet.name)}`
       : baseName;
 
     sheets.push({ tableName, headers: cleanHeaders, rows });

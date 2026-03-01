@@ -45,6 +45,7 @@
     "better-sqlite3": "^12.6.2",
     "commander": "^12.1.0",
     "cors": "^2.8.6",
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "fast-xml-parser": "^5.4.1",
     "handlebars": "^4.7.8",
@@ -54,8 +55,7 @@
     "papaparse": "^5.5.3",
     "pg": "^8.13.0",
     "tsx": "^4.19.0",
-    "uuid": "^13.0.0",
-    "xlsx": "^0.18.5"
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.3",

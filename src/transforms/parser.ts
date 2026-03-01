@@ -6,7 +6,7 @@
 // =============================================================================
 
 import Papa from 'papaparse';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import type { TransformMapping, TransformData } from './types';
 
 // ---------------------------------------------------------------------------
@@ -124,7 +124,7 @@ export async function parseTransformFiles(files: TransformFile[]): Promise<Trans
     let rawSheets: { headers: string[]; rows: Record<string, string>[] }[];
 
     if (ext === 'xlsx' || ext === 'xls') {
-      rawSheets = parseExcel(file);
+      rawSheets = await parseExcel(file);
     } else {
       rawSheets = [parseCsv(file)];
     }
@@ -237,16 +237,79 @@ function parseCsv(file: TransformFile): { headers: string[]; rows: Record<string
   };
 }
 
-function parseExcel(file: TransformFile): { headers: string[]; rows: Record<string, string>[] }[] {
-  const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+/**
+ * Extract a usable string value from an ExcelJS cell.
+ */
+function extractCellString(value: ExcelJS.CellValue): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (value instanceof Date) return value.toISOString();
+
+  // Rich text
+  if (typeof value === 'object' && 'richText' in value && Array.isArray((value as { richText: unknown[] }).richText)) {
+    return ((value as { richText: { text: string }[] }).richText)
+      .map((segment) => segment.text)
+      .join('');
+  }
+
+  // Formula result
+  if (typeof value === 'object' && 'result' in value) {
+    const result = (value as { result: unknown }).result;
+    if (result === null || result === undefined) return '';
+    if (result instanceof Date) return result.toISOString();
+    return String(result);
+  }
+
+  // Hyperlink
+  if (typeof value === 'object' && 'text' in value) {
+    return String((value as { text: unknown }).text);
+  }
+
+  // Error — treat as empty
+  if (typeof value === 'object' && 'error' in value) {
+    return '';
+  }
+
+  return String(value);
+}
+
+async function parseExcel(file: TransformFile): Promise<{ headers: string[]; rows: Record<string, string>[] }[]> {
+  const workbook = new ExcelJS.Workbook();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await workbook.xlsx.load(file.buffer as any);
   const sheets: { headers: string[]; rows: Record<string, string>[] }[] = [];
 
-  for (const sheetName of workbook.SheetNames) {
-    const ws = workbook.Sheets[sheetName];
-    const jsonRows = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: '' });
-    if (jsonRows.length === 0) continue;
-    const headers = Object.keys(jsonRows[0]);
-    sheets.push({ headers, rows: jsonRows });
+  for (const worksheet of workbook.worksheets) {
+    if (worksheet.rowCount < 2) continue;
+
+    // Row 1 = headers
+    const headerRow = worksheet.getRow(1);
+    const headers: string[] = [];
+    headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      while (headers.length < colNumber - 1) headers.push('');
+      headers.push(cell.value != null ? String(cell.value) : '');
+    });
+
+    if (headers.length === 0) continue;
+
+    // Data rows
+    const rows: Record<string, string>[] = [];
+    for (let rowIdx = 2; rowIdx <= worksheet.rowCount; rowIdx++) {
+      const row = worksheet.getRow(rowIdx);
+      if (row.actualCellCount === 0) continue;
+
+      const record: Record<string, string> = {};
+      for (let colIdx = 0; colIdx < headers.length; colIdx++) {
+        const cell = row.getCell(colIdx + 1);
+        record[headers[colIdx]] = extractCellString(cell.value);
+      }
+      rows.push(record);
+    }
+
+    if (rows.length > 0) {
+      sheets.push({ headers, rows });
+    }
   }
 
   return sheets;
