@@ -1,3 +1,4 @@
+// DORMANT: Not registered in ALL_CHECKS. Activate when pipeline metadata scanning is supported.
 // =============================================================================
 // P4-LINEAGE-GAPS — Cross-reference pipeline mappings against SchemaData
 // =============================================================================

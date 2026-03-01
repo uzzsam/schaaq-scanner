@@ -1,3 +1,4 @@
+// DORMANT: Not registered in ALL_CHECKS. Activate when pipeline metadata scanning is supported.
 // =============================================================================
 // P1-MAPPING-DRIFT — Detect semantic alterations in pipeline mappings
 // =============================================================================
