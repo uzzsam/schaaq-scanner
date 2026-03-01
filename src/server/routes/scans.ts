@@ -17,6 +17,14 @@ import { checkLineageGaps } from '../../checks/p4-lineage-gaps';
 import type { SchemaData } from '../../adapters/types';
 import type { PipelineMapping } from '../../types/pipeline';
 import { safeError } from '../middleware/safe-error';
+import { validateBody, validateQuery } from '../middleware/validate';
+import {
+  triggerScanSchema,
+  uploadScanBodySchema,
+  pipelineUploadBodySchema,
+  findingsQuerySchema,
+  transformFindingsQuerySchema,
+} from '../schemas';
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -68,12 +76,13 @@ export function scanRoutes(
   });
 
   // Get scan findings
-  router.get('/:id/findings', (req, res) => {
+  router.get('/:id/findings', validateQuery(findingsQuerySchema), (req, res) => {
     try {
-      const property = req.query.property ? parseInt(req.query.property as string) : undefined;
+      const { property } = res.locals.query as { property?: number };
+      const scanId = req.params.id as string;
       const findings = property
-        ? repo.getFindingsByProperty(req.params.id, property)
-        : repo.getFindings(req.params.id);
+        ? repo.getFindingsByProperty(scanId, property)
+        : repo.getFindings(scanId);
       res.json(findings);
     } catch (err: any) {
       res.status(500).json({ error: safeError(err, 'GET /api/scans/:id/findings') });
@@ -99,7 +108,7 @@ export function scanRoutes(
   });
 
   // Trigger a new scan
-  router.post('/', async (req, res) => {
+  router.post('/', validateBody(triggerScanSchema), async (req, res) => {
     try {
       const { projectId, dryRun } = req.body;
 
@@ -154,13 +163,9 @@ export function scanRoutes(
   });
 
   // Upload CSV/Excel/BI files and trigger a scan
-  router.post('/upload', upload.array('files', 50), async (req, res) => {
+  router.post('/upload', upload.array('files', 50), validateBody(uploadScanBodySchema), async (req, res) => {
     try {
       const { projectId } = req.body;
-      if (!projectId) {
-        res.status(400).json({ error: 'projectId is required' });
-        return;
-      }
 
       const project = repo.getProject(projectId);
       if (!project) {
@@ -316,7 +321,7 @@ export function scanRoutes(
   });
 
   // Upload pipeline mapping files and run pipeline checks
-  router.post('/:id/pipeline-upload', pipelineUpload.array('files', 10), async (req, res) => {
+  router.post('/:id/pipeline-upload', pipelineUpload.array('files', 10), validateBody(pipelineUploadBodySchema), async (req, res) => {
     try {
       const scanId = req.params.id as string;
       const scan = repo.getScan(scanId);
@@ -331,7 +336,7 @@ export function scanRoutes(
         return;
       }
 
-      const pipelineType = (req.body.pipelineType as string) ?? 'stm';
+      const pipelineType = req.body.pipelineType as string; // default 'stm' set by schema
       let pipelineMapping: PipelineMapping;
 
       if (pipelineType === 'dbt') {
@@ -432,12 +437,13 @@ export function scanRoutes(
   });
 
   // Get transform findings for a scan
-  router.get('/:id/transform-findings', (req, res) => {
+  router.get('/:id/transform-findings', validateQuery(transformFindingsQuerySchema), (req, res) => {
     try {
-      const category = req.query.category as string | undefined;
+      const { category } = res.locals.query as { category?: string };
+      const scanId = req.params.id as string;
       const findings = category
-        ? repo.getTransformFindingsByCategory(req.params.id, category)
-        : repo.getTransformFindings(req.params.id);
+        ? repo.getTransformFindingsByCategory(scanId, category)
+        : repo.getTransformFindings(scanId);
       res.json(findings);
     } catch (err: any) {
       res.status(500).json({ error: safeError(err, 'GET /api/scans/:id/transform-findings') });

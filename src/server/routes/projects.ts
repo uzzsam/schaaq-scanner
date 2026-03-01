@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import type { Repository, ProjectRow } from '../db/repository';
 import { safeError } from '../middleware/safe-error';
+import { validateBody } from '../middleware/validate';
+import { createProjectSchema, updateProjectSchema } from '../schemas';
 
 /**
  * Strip decrypted credentials from API responses.
@@ -43,7 +45,7 @@ export function projectRoutes(repo: Repository): Router {
   });
 
   // Create project
-  router.post('/', (req, res) => {
+  router.post('/', validateBody(createProjectSchema), (req, res) => {
     try {
       const project = repo.createProject(req.body);
       res.status(201).json(redactCredentials(project));
@@ -53,9 +55,9 @@ export function projectRoutes(repo: Repository): Router {
   });
 
   // Update project
-  router.patch('/:id', (req, res) => {
+  router.patch('/:id', validateBody(updateProjectSchema), (req, res) => {
     try {
-      const project = repo.updateProject(req.params.id, req.body);
+      const project = repo.updateProject(req.params.id as string, req.body);
       if (!project) {
         res.status(404).json({ error: 'Project not found' });
         return;
