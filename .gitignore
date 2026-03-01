@@ -1,9 +1,32 @@
+# Node
 node_modules/
 dist/
 dist-electron/
+
+# Build / packaging
 installer-output/
+
+# Runtime data
 data/
 data-test2/
 output/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Encryption keys (auto-generated — must NOT be committed)
+encryption.key
+
+# Logs
 *.log
+
+# Environment
 .env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
