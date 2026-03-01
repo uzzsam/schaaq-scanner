@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { Repository } from '../db/repository';
+import { safeError } from '../middleware/safe-error';
 
 export function projectRoutes(repo: Repository): Router {
   const router = Router();
@@ -10,7 +11,7 @@ export function projectRoutes(repo: Repository): Router {
       const projects = repo.listProjects();
       res.json(projects);
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: safeError(err, 'GET /api/projects') });
     }
   });
 
@@ -24,7 +25,7 @@ export function projectRoutes(repo: Repository): Router {
       }
       res.json(project);
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: safeError(err, 'GET /api/projects/:id') });
     }
   });
 
@@ -34,7 +35,7 @@ export function projectRoutes(repo: Repository): Router {
       const project = repo.createProject(req.body);
       res.status(201).json(project);
     } catch (err: any) {
-      res.status(400).json({ error: err.message });
+      res.status(400).json({ error: safeError(err, 'POST /api/projects') });
     }
   });
 
@@ -48,7 +49,7 @@ export function projectRoutes(repo: Repository): Router {
       }
       res.json(project);
     } catch (err: any) {
-      res.status(400).json({ error: err.message });
+      res.status(400).json({ error: safeError(err, 'PATCH /api/projects/:id') });
     }
   });
 
@@ -58,7 +59,7 @@ export function projectRoutes(repo: Repository): Router {
       repo.archiveProject(req.params.id);
       res.status(204).send();
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: safeError(err, 'DELETE /api/projects/:id') });
     }
   });
 
@@ -68,7 +69,7 @@ export function projectRoutes(repo: Repository): Router {
       const scans = repo.listScans(req.params.id);
       res.json(scans);
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: safeError(err, 'GET /api/projects/:id/scans') });
     }
   });
 

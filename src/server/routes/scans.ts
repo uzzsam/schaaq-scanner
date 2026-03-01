@@ -16,6 +16,7 @@ import { checkMappingDrift } from '../../checks/p1-mapping-drift';
 import { checkLineageGaps } from '../../checks/p4-lineage-gaps';
 import type { SchemaData } from '../../adapters/types';
 import type { PipelineMapping } from '../../types/pipeline';
+import { safeError } from '../middleware/safe-error';
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -62,7 +63,7 @@ export function scanRoutes(
       }
       res.json(scan);
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: safeError(err, 'GET /api/scans/:id') });
     }
   });
 
@@ -75,7 +76,7 @@ export function scanRoutes(
         : repo.getFindings(req.params.id);
       res.json(findings);
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: safeError(err, 'GET /api/scans/:id/findings') });
     }
   });
 
@@ -93,7 +94,7 @@ export function scanRoutes(
       }
       res.json(JSON.parse(scan.engine_result_json));
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: safeError(err, 'GET /api/scans/:id/result') });
     }
   });
 
@@ -148,7 +149,7 @@ export function scanRoutes(
       });
 
     } catch (err: any) {
-      res.status(400).json({ error: err.message });
+      res.status(400).json({ error: safeError(err, 'POST /api/scans') });
     }
   });
 
@@ -237,7 +238,7 @@ export function scanRoutes(
       });
 
     } catch (err: any) {
-      res.status(400).json({ error: err.message });
+      res.status(400).json({ error: safeError(err, 'POST /api/scans/upload') });
     }
   });
 
@@ -310,7 +311,7 @@ export function scanRoutes(
         warnings: parseResult.warnings,
       });
     } catch (err: any) {
-      res.status(400).json({ error: err.message });
+      res.status(400).json({ error: safeError(err, 'POST /api/scans/:id/transform-upload') });
     }
   });
 
@@ -426,7 +427,7 @@ export function scanRoutes(
         fileCount: uploadedFiles.length,
       });
     } catch (err: any) {
-      res.status(400).json({ error: err.message });
+      res.status(400).json({ error: safeError(err, 'POST /api/scans/:id/pipeline-upload') });
     }
   });
 
@@ -439,7 +440,7 @@ export function scanRoutes(
         : repo.getTransformFindings(req.params.id);
       res.json(findings);
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: safeError(err, 'GET /api/scans/:id/transform-findings') });
     }
   });
 
@@ -496,7 +497,7 @@ export function scanRoutes(
       res.setHeader('Content-Disposition', `attachment; filename="dalc-report-${scan.id.slice(0, 8)}.html"`);
       res.send(html);
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: safeError(err, 'GET /api/scans/:id/export/html') });
     }
   });
 
