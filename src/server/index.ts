@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import type Database from 'better-sqlite3';
@@ -70,6 +71,7 @@ export function createServer(config: ServerConfig): {
     methods: ['GET', 'POST', 'PATCH', 'DELETE'],
     credentials: false,
   }));
+  app.use(helmet());
   app.use(express.json());
 
   // --- API Routes ---
