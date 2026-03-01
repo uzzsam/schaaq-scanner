@@ -683,6 +683,26 @@ function getMaturityLabel(score: number): string {
 // ---------------------------------------------------------------------------
 
 export function calculateDALC(input: DALCInput): DALCResult {
+  // --- Input validation guards ---
+  if (input.revenueAUD <= 0) {
+    throw new Error('revenueAUD must be greater than 0');
+  }
+  if (input.sourceSystems < 1) {
+    throw new Error('sourceSystems must be at least 1');
+  }
+  if (input.totalFTE < 1) {
+    throw new Error('totalFTE must be at least 1');
+  }
+  if (input.dataEngineers < 0) {
+    throw new Error('dataEngineers must not be negative');
+  }
+  if (input.avgEngineerSalaryAUD <= 0) {
+    throw new Error('avgEngineerSalaryAUD must be greater than 0');
+  }
+  if (input.avgFTESalaryAUD <= 0) {
+    throw new Error('avgFTESalaryAUD must be greater than 0');
+  }
+
   const sectorConfig = SECTOR_CONFIGS[input.sector];
   const canonicalInvestment =
     input.canonicalInvestmentAUD ?? DEFAULT_CANONICAL_INVESTMENT;

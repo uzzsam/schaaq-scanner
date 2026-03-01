@@ -11,6 +11,7 @@ import type {
   EvidenceCitation,
   ModellingApproach,
   SectorConfig,
+  Severity,
   WMatrix,
 } from './types';
 
@@ -204,7 +205,7 @@ export const CANONICAL_ANNUAL_GROWTH_RATE = 0.03;
 // Severity Multipliers
 // ---------------------------------------------------------------------------
 
-export const SEVERITY_MULTIPLIERS: Record<string, number> = {
+export const SEVERITY_MULTIPLIERS: Record<Severity, number> = {
   none: 0.0,
   some: 0.5,
   pervasive: 1.0,
