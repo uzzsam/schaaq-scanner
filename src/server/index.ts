@@ -53,7 +53,23 @@ export function createServer(config: ServerConfig): {
   });
 
   // Middleware
-  app.use(cors());
+  app.use(cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (same-origin, curl, Electron, etc.)
+      if (!origin) return callback(null, true);
+      try {
+        const url = new URL(origin);
+        if (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '::1') {
+          return callback(null, true);
+        }
+      } catch {
+        // invalid origin
+      }
+      callback(new Error('CORS: origin not allowed'));
+    },
+    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+    credentials: false,
+  }));
   app.use(express.json());
 
   // --- API Routes ---
