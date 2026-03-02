@@ -20,8 +20,8 @@ files:
 # Auto-updater: publish to GitHub Releases
 publish:
   provider: github
-  owner: schaaq
-  repo: scanner
+  owner: uzzsam
+  repo: schaaq-scanner
 
 # --- Windows ---
 win:
