@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import type Database from 'better-sqlite3';
@@ -79,6 +80,27 @@ export function createServer(config: ServerConfig): {
   app.use(helmet());
   app.use(express.json());
 
+  // --- Rate limiting ---
+  // Global: 100 requests per 15 minutes per IP (generous for localhost use)
+  const globalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 100,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { error: 'Too many requests. Please try again later.' },
+  });
+
+  // Strict: 5 requests per 15 minutes for credential-mutating endpoints
+  const credentialLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 5,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { error: 'Too many requests. Please try again later.' },
+  });
+
+  app.use('/api', globalLimiter);
+
   // API key auth (optional — only active when DALC_API_KEY is set)
   app.use('/api', apiKeyAuth);
 
@@ -98,7 +120,7 @@ export function createServer(config: ServerConfig): {
   });
 
   app.use('/api/dashboard', dashboardRoutes(repo));
-  app.use('/api/projects', projectRoutes(repo));
+  app.use('/api/projects', credentialLimiter, projectRoutes(repo));
   app.use('/api/scans', scanRoutes(repo, scanRunner, sseConnections));
 
   // --- SSE endpoint for scan progress ---

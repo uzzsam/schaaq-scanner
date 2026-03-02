@@ -47,6 +47,7 @@
     "cors": "^2.8.6",
     "exceljs": "^4.4.0",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.2.1",
     "fast-xml-parser": "^5.4.1",
     "file-type": "^21.3.0",
     "handlebars": "^4.7.8",
