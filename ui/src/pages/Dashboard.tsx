@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchDashboard, fetchProjects, type DashboardStats, type Project } from '../api/client';
 import { MetricCard, PageHeader, PrimaryButton, EmptyState } from '../components/Shared';
+import { WelcomeWizard } from '../components/WelcomeWizard';
 import { StatusBadge } from '../components/Badges';
 import { formatCost, timeAgo } from '../utils';
 
@@ -10,6 +11,7 @@ export function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [wizardDismissed, setWizardDismissed] = useState(false);
 
   useEffect(() => {
     Promise.all([fetchDashboard(), fetchProjects()])
@@ -22,13 +24,19 @@ export function Dashboard() {
     return <div style={{ color: '#6B7280', padding: 40, textAlign: 'center' }}>Loading...</div>;
   }
 
+  // First-time user: zero projects → show Welcome Wizard
   if (!stats || projects.length === 0) {
+    if (!wizardDismissed) {
+      return <WelcomeWizard onComplete={() => setWizardDismissed(true)} />;
+    }
+
+    // Wizard dismissed via "Skip" — show the fallback empty state
     return (
       <EmptyState
-        icon={'⬡'}
+        icon={'\u2B21'}
         title="Welcome to Schaaq Scanner"
         description="Create your first project to start analysing data architecture costs."
-        action={<PrimaryButton onClick={() => navigate('/projects/new')}>Create Project →</PrimaryButton>}
+        action={<PrimaryButton onClick={() => navigate('/projects/new')}>Create Project &rarr;</PrimaryButton>}
       />
     );
   }
