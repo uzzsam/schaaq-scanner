@@ -82,4 +82,4 @@ info "Pushed to origin. CI will build the release."
 
 echo ""
 info "Done! Monitor the build at:"
-info "  https://github.com/schaaq/scanner/actions"
+info "  https://github.com/uzzsam/schaaq-scanner/actions"

@@ -2,6 +2,10 @@
   "name": "dalc-scanner",
   "version": "0.2.0",
   "description": "DALC Phase 2 — Standalone diagnostic scanner for data architecture cost assessment",
+  "author": {
+    "name": "Schaaq",
+    "email": "uzy@schaaq.com"
+  },
   "private": true,
   "type": "module",
   "main": "dist-electron/main.js",

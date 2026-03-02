@@ -24,13 +24,13 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            build_cmd: "npm run electron:build:win"
+            build_cmd: "npx electron-builder --win --config.npmRebuild=false"
             artifact_glob: "installer-output/*.exe"
           - os: macos-latest
-            build_cmd: "npm run electron:build:mac"
+            build_cmd: "npx electron-builder --mac --config.npmRebuild=false"
             artifact_glob: "installer-output/*.dmg"
           - os: ubuntu-latest
-            build_cmd: "npm run electron:build"
+            build_cmd: "npx electron-builder --linux --config.npmRebuild=false"
             artifact_glob: "installer-output/*.AppImage"
 
     runs-on: ${{ matrix.os }}
@@ -96,6 +96,8 @@ jobs:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          # Skip macOS code signing when no certificate is configured
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.CSC_LINK != '' }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
