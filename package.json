@@ -1,6 +1,6 @@
 {
   "name": "dalc-scanner",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "DALC Phase 2 — Standalone diagnostic scanner for data architecture cost assessment",
   "author": {
     "name": "Schaaq",
