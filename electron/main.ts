@@ -18,7 +18,7 @@ register('./esm-resolve-hook.js', import.meta.url);
 import { app, BrowserWindow, shell, Tray, Menu, nativeImage, dialog } from 'electron';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import type { Server } from 'node:http';
 import log from 'electron-log';
 import electronUpdater from 'electron-updater';
@@ -74,6 +74,7 @@ async function initSentry(): Promise<void> {
 const PORT = 23847; // High port to avoid conflicts
 
 let mainWindow: BrowserWindow | null = null;
+let splashWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let expressServer: Server | null = null;
 
@@ -219,6 +220,55 @@ async function startServer(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Splash screen
+// ---------------------------------------------------------------------------
+
+function createSplashWindow(): BrowserWindow {
+  const basePath = getAppBasePath();
+  const splashPath = path.join(basePath, 'dist-electron', 'splash.html');
+
+  const splash = new BrowserWindow({
+    width: 400,
+    height: 300,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    movable: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    center: true,
+    backgroundColor: '#00000000',
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+
+  // Read splash HTML, inject the real version, and load as data URI
+  try {
+    const html = readFileSync(splashPath, 'utf-8')
+      .replace('{{VERSION}}', app.getVersion());
+    splash.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+  } catch (err) {
+    log.warn('[splash] Failed to load splash screen:', err);
+    // Non-fatal — splash is cosmetic, app will continue booting
+  }
+
+  splash.on('closed', () => {
+    splashWindow = null;
+  });
+
+  return splash;
+}
+
+function closeSplash(): void {
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.close();
+    splashWindow = null;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // BrowserWindow
 // ---------------------------------------------------------------------------
 
@@ -315,26 +365,56 @@ app.whenReady().then(async () => {
 
   await initSentry();
 
+  // 1. Show splash immediately — visible while server boots
+  splashWindow = createSplashWindow();
+
+  // 2. Create main window (hidden) and tray
   createWindow();
   createTray();
   setupAutoUpdater();
 
-  try {
-    await startServer();
-    mainWindow?.loadURL(`http://localhost:${PORT}`);
+  // 3. Safety timeout — if server takes >30s, assume failure
+  const startupTimeout = setTimeout(() => {
+    log.error('[app] Server startup timed out after 30 seconds');
+    closeSplash();
+
+    const errorHtml = `data:text/html;charset=utf-8,${encodeURIComponent(`<html>
+      <body style="background:#0a0f1a;color:#e2e8f0;font-family:system-ui;padding:40px;">
+        <h2 style="color:#f87171;">Startup timed out</h2>
+        <p>The server failed to start within 30 seconds.</p>
+        <p style="color:#94a3b8;margin-top:20px;">Please restart the application. If the problem persists, check that port ${PORT} is not in use.</p>
+      </body>
+      </html>`)}`;
+    mainWindow?.loadURL(errorHtml);
     mainWindow?.show();
+  }, 30_000);
+
+  try {
+    // 4. Start the Express server (splash is visible during this)
+    await startServer();
+    clearTimeout(startupTimeout);
+
+    // 5. Load the UI in the main window
+    mainWindow?.loadURL(`http://localhost:${PORT}`);
+
+    // 6. When the page finishes loading, close splash and show main window
+    mainWindow?.webContents.once('did-finish-load', () => {
+      closeSplash();
+      mainWindow?.show();
+    });
   } catch (error: any) {
+    clearTimeout(startupTimeout);
     log.error('[app] Failed to start server:', error);
     Sentry?.captureException(error);
+    closeSplash();
 
-    const errorHtml = `data:text/html;charset=utf-8,
-      <html>
+    const errorHtml = `data:text/html;charset=utf-8,${encodeURIComponent(`<html>
       <body style="background:#0a0f1a;color:#e2e8f0;font-family:system-ui;padding:40px;">
         <h2 style="color:#f87171;">Failed to start Schaaq Scanner</h2>
         <p>${error.message ?? 'Unknown error'}</p>
         <p style="color:#94a3b8;margin-top:20px;">Please restart the application. If the problem persists, check that port ${PORT} is not in use.</p>
       </body>
-      </html>`;
+      </html>`)}`;
     mainWindow?.loadURL(errorHtml);
     mainWindow?.show();
   }
