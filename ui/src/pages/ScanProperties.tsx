@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { fetchScan, fetchFindings, fetchEngineResult, type Scan, type Finding } from '../api/client';
 import { PageHeader, Card } from '../components/Shared';
@@ -6,6 +6,8 @@ import { PropertyRadar } from '../components/PropertyRadar';
 import { ScoreBar } from '../components/Badges';
 import { SeverityBadge } from '../components/SeverityBadge';
 import { formatCost, PROPERTY_NAMES, scoreColor, type SeverityKey } from '../utils';
+import { ScanDetailSkeleton } from '../components/LoadingSkeleton';
+import { ErrorState } from '../components/ErrorState';
 
 export function ScanProperties() {
   const { scanId } = useParams();
@@ -13,22 +15,27 @@ export function ScanProperties() {
   const [findings, setFindings] = useState<Finding[]>([]);
   const [engineResult, setEngineResult] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!scanId) return;
+    setLoading(true);
+    setError(null);
     Promise.all([
       fetchScan(scanId),
       fetchFindings(scanId),
       fetchEngineResult(scanId).catch(() => null),
     ])
       .then(([s, f, r]) => { setScan(s); setFindings(f); setEngineResult(r); })
-      .catch(console.error)
+      .catch((err) => setError(err?.message ?? 'Failed to load properties'))
       .finally(() => setLoading(false));
   }, [scanId]);
 
-  if (loading) return <div style={{ color: '#6B7280', padding: 40, textAlign: 'center' }}>Loading...</div>;
-  if (!scan) return <div style={{ color: '#EF4444', padding: 40, textAlign: 'center' }}>Scan not found.</div>;
+  useEffect(() => { load(); }, [load]);
+
+  if (loading) return <ScanDetailSkeleton />;
+  if (error || !scan) return <ErrorState title="Scan not found" message={error ?? 'This scan could not be loaded.'} onRetry={load} />;
 
   // ---- Cost calculation (same logic as ScanResults) ----
   const findingCosts = new Map<number, number>();

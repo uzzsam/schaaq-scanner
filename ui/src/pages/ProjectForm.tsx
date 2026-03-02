@@ -60,6 +60,7 @@ export function ProjectForm() {
   const [dragOver, setDragOver] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -77,7 +78,7 @@ export function ProjectForm() {
           dbUsername: p.db_username ?? '', dbPassword: '',
           dbSsl: p.db_ssl === 1, dbSchemas: p.db_schemas ?? 'public',
         });
-      }).catch(console.error);
+      }).catch((err) => setFormError(err?.message ?? 'Failed to load project'));
     }
   }, [id, isEdit]);
 
@@ -112,6 +113,7 @@ export function ProjectForm() {
 
   const handleSave = async () => {
     setSaving(true);
+    setFormError(null);
     try {
       const input: CreateProjectInput = {
         name: form.name,
@@ -152,7 +154,7 @@ export function ProjectForm() {
           navigate(`/scans/${result.scanId}/progress`);
           return;
         } catch (err: any) {
-          alert('Upload failed: ' + err.message);
+          setFormError(err?.message ?? 'Upload failed');
         } finally {
           setUploading(false);
         }
@@ -167,7 +169,7 @@ export function ProjectForm() {
           navigate(`/scans/${scanResult.scanId}`);
           return;
         } catch (err: any) {
-          alert('Pipeline upload failed: ' + err.message);
+          setFormError(err?.message ?? 'Pipeline upload failed');
         } finally {
           setUploading(false);
         }
@@ -175,7 +177,7 @@ export function ProjectForm() {
 
       navigate('/projects');
     } catch (err: any) {
-      alert('Save failed: ' + err.message);
+      setFormError(err?.message ?? 'Save failed');
     } finally {
       setSaving(false);
     }
@@ -196,6 +198,20 @@ export function ProjectForm() {
   return (
     <div>
       <PageHeader title={isEdit ? 'Edit Project' : 'New Project'} />
+
+      {formError && (
+        <div style={{
+          background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+          borderRadius: 8, padding: '10px 16px', marginBottom: 12,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <span style={{ color: '#FCA5A5', fontSize: 13 }}>{formError}</span>
+          <button onClick={() => setFormError(null)} style={{
+            background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer',
+            fontSize: 16, fontFamily: 'inherit', padding: '0 4px',
+          }}>×</button>
+        </div>
+      )}
 
       <FormSection title="Organisation Details">
         <FormField label="Project Name">

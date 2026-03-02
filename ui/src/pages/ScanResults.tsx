@@ -16,6 +16,8 @@ import {
   formatCost, formatCostFull, PROPERTY_NAMES, COST_CATEGORY_LABELS,
   scoreColor, type SeverityKey,
 } from '../utils';
+import { ScanDetailSkeleton } from '../components/LoadingSkeleton';
+import { ErrorState } from '../components/ErrorState';
 
 // Sub-views
 type ViewMode = 'overview' | 'findings' | 'detail' | 'transforms';
@@ -29,6 +31,7 @@ export function ScanResults() {
   const [findings, setFindings] = useState<Finding[]>([]);
   const [engineResult, setEngineResult] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<ViewMode>('overview');
   const [selectedFinding, setSelectedFinding] = useState<Finding | null>(null);
 
@@ -46,9 +49,13 @@ export function ScanResults() {
   // Filters for transform view
   const [transformCategoryFilter, setTransformCategoryFilter] = useState('all');
   const [transformSeverityFilter, setTransformSeverityFilter] = useState('all');
+  // Upload error banner
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadScan = useCallback(() => {
     if (!scanId) return;
+    setLoading(true);
+    setError(null);
     Promise.all([
       fetchScan(scanId),
       fetchFindings(scanId),
@@ -56,9 +63,11 @@ export function ScanResults() {
       fetchTransformFindings(scanId).catch(() => []),
     ])
       .then(([s, f, r, tf]) => { setScan(s); setFindings(f); setEngineResult(r); setTransformFindings(tf); })
-      .catch(console.error)
+      .catch((err) => setError(err?.message ?? 'Failed to load scan results'))
       .finally(() => setLoading(false));
   }, [scanId]);
+
+  useEffect(() => { loadScan(); }, [loadScan]);
 
   const handleTransformUpload = useCallback(async (files: FileList | File[]) => {
     if (!scanId || files.length === 0) return;
@@ -79,14 +88,14 @@ export function ScanResults() {
       setTransformFindings(tf);
       setScan(s);
     } catch (err: any) {
-      alert('Transform upload failed: ' + err.message);
+      setUploadError(err?.message ?? 'Transform upload failed');
     } finally {
       setTransformUploading(false);
     }
   }, [scanId]);
 
-  if (loading) return <div style={{ color: '#6B7280', padding: 40, textAlign: 'center' }}>Loading...</div>;
-  if (!scan) return <div style={{ color: '#EF4444', padding: 40, textAlign: 'center' }}>Scan not found.</div>;
+  if (loading) return <ScanDetailSkeleton />;
+  if (error || !scan) return <ErrorState title="Scan not found" message={error ?? 'This scan could not be loaded.'} onRetry={loadScan} />;
 
   // Calculate costs per finding
   const findingCosts = new Map<number, number>();
@@ -195,6 +204,20 @@ export function ScanResults() {
           </a>
         </div>
       </div>
+
+      {uploadError && (
+        <div style={{
+          background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+          borderRadius: 8, padding: '10px 16px', marginBottom: 12,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <span style={{ color: '#FCA5A5', fontSize: 13 }}>Upload failed: {uploadError}</span>
+          <button onClick={() => setUploadError(null)} style={{
+            background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer',
+            fontSize: 16, fontFamily: 'inherit', padding: '0 4px',
+          }}>×</button>
+        </div>
+      )}
 
       {/* === OVERVIEW === */}
       {view === 'overview' && (

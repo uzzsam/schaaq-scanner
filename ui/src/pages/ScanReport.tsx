@@ -1,25 +1,32 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { fetchScan, fetchFindings, getExportHtmlUrl, type Scan, type Finding } from '../api/client';
 import { PageHeader, Card, PrimaryButton, SecondaryButton } from '../components/Shared';
 import { PROPERTY_NAMES, SEVERITY_CONFIG, type SeverityKey } from '../utils';
+import { ScanDetailSkeleton } from '../components/LoadingSkeleton';
+import { ErrorState } from '../components/ErrorState';
 
 export function ScanReport() {
   const { scanId } = useParams();
   const [scan, setScan] = useState<Scan | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!scanId) return;
+    setLoading(true);
+    setError(null);
     Promise.all([fetchScan(scanId), fetchFindings(scanId)])
       .then(([s, f]) => { setScan(s); setFindings(f); })
-      .catch(console.error)
+      .catch((err) => setError(err?.message ?? 'Failed to load report'))
       .finally(() => setLoading(false));
   }, [scanId]);
 
-  if (loading) return <div style={{ color: '#6B7280', padding: 40, textAlign: 'center' }}>Loading...</div>;
-  if (!scan) return <div style={{ color: '#EF4444', padding: 40, textAlign: 'center' }}>Scan not found.</div>;
+  useEffect(() => { load(); }, [load]);
+
+  if (loading) return <ScanDetailSkeleton />;
+  if (error || !scan) return <ErrorState title="Scan not found" message={error ?? 'This scan could not be loaded.'} onRetry={load} />;
 
   const downloadCsv = () => {
     const header = ['ID', 'Title', 'Severity', 'Property', 'Property Name', 'Raw Score', 'Ratio', 'Affected Objects', 'Total Objects', 'Description', 'Remediation'];

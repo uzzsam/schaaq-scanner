@@ -4,6 +4,8 @@ import { fetchDashboard, fetchProjects, type DashboardStats, type Project } from
 import { MetricCard, PageHeader, PrimaryButton, EmptyState } from '../components/Shared';
 import { WelcomeWizard } from '../components/WelcomeWizard';
 import { StatusBadge } from '../components/Badges';
+import { DashboardSkeleton } from '../components/LoadingSkeleton';
+import { ErrorState } from '../components/ErrorState';
 import { formatCost, timeAgo } from '../utils';
 
 export function Dashboard() {
@@ -11,18 +13,22 @@ export function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [wizardDismissed, setWizardDismissed] = useState(false);
 
-  useEffect(() => {
+  const load = () => {
+    setLoading(true);
+    setError(null);
     Promise.all([fetchDashboard(), fetchProjects()])
       .then(([s, p]) => { setStats(s); setProjects(p); })
-      .catch(console.error)
+      .catch((err) => setError(err?.message ?? 'Failed to load dashboard'))
       .finally(() => setLoading(false));
-  }, []);
+  };
 
-  if (loading) {
-    return <div style={{ color: '#6B7280', padding: 40, textAlign: 'center' }}>Loading...</div>;
-  }
+  useEffect(() => { load(); }, []);
+
+  if (loading) return <DashboardSkeleton />;
+  if (error) return <ErrorState message={error} onRetry={load} />;
 
   // First-time user: zero projects → show Welcome Wizard
   if (!stats || projects.length === 0) {
