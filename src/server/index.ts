@@ -18,6 +18,7 @@ export interface ServerConfig {
   port: number;
   dataDir: string;
   uiDir?: string;      // Path to built React SPA static files
+  version?: string;    // App version (from Electron or package.json)
 }
 
 export function createServer(config: ServerConfig): {
@@ -105,8 +106,14 @@ export function createServer(config: ServerConfig): {
   app.use('/api', apiKeyAuth);
 
   // --- API Routes ---
+  const appVersion = config.version ?? '0.0.0';
+
+  app.get('/api/version', (_req, res) => {
+    res.json({ version: appVersion });
+  });
+
   app.get('/api/health', (_req, res) => {
-    res.json({ status: 'ok', version: '2.0.0', uptime: process.uptime() });
+    res.json({ status: 'ok', version: appVersion, uptime: process.uptime() });
   });
 
   app.post('/api/shutdown', (req, res) => {
@@ -191,7 +198,7 @@ export function createServer(config: ServerConfig): {
     app.get('/', (req, res) => {
       res.json({
         message: 'schaaq API is running',
-        version: '0.1.0',
+        version: appVersion,
         docs: 'API available at /api/dashboard, /api/projects, /api/scans',
         ui: 'React UI not built yet. Run "npm run build:ui" first.',
       });

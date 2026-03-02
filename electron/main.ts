@@ -197,6 +197,7 @@ async function startServer(): Promise<void> {
     port: PORT,
     dataDir,
     uiDir: existsSync(uiDir) ? uiDir : undefined,
+    version: app.getVersion(),
   });
 
   return new Promise<void>((resolve, reject) => {
@@ -280,7 +281,7 @@ function createWindow(): void {
     height: 900,
     minWidth: 1024,
     minHeight: 700,
-    title: 'Schaaq Scanner',
+    title: `Schaaq Scanner v${app.getVersion()}`,
     icon: path.join(basePath, 'schaaq.ico'),
     backgroundColor: '#0a0f1a',
     show: false, // Show after server is ready
@@ -476,6 +477,15 @@ function buildAppMenu(): void {
 // ---------------------------------------------------------------------------
 // IPC handlers
 // ---------------------------------------------------------------------------
+
+ipcMain.handle('app:getVersion', () => app.getVersion());
+
+ipcMain.handle('updater:checkForUpdates', () => {
+  if (app.isPackaged) {
+    return autoUpdater.checkForUpdates().catch(() => null);
+  }
+  return null;
+});
 
 ipcMain.on('app:navigate', (_event, navPath: string) => {
   mainWindow?.loadURL(`http://localhost:${PORT}${navPath}`);

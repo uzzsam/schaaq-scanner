@@ -51,8 +51,21 @@ function NavButton({
 
 export function Layout({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [appVersion, setAppVersion] = useState<string>('');
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Fetch app version — Electron bridge or API fallback
+  useEffect(() => {
+    if (window.schaaq?.getVersion) {
+      window.schaaq.getVersion().then(setAppVersion).catch(() => {});
+    } else {
+      fetch('/api/version')
+        .then((r) => r.json())
+        .then((d) => setAppVersion(d.version ?? ''))
+        .catch(() => {});
+    }
+  }, []);
 
   // Detect scan context from URL: /scans/:scanId/*
   const scanMatch = location.pathname.match(/\/scans\/([^/]+)/);
@@ -103,7 +116,7 @@ export function Layout({ children }: { children: ReactNode }) {
           {!collapsed && (
             <div>
               <div style={{ color: 'white', fontWeight: 700, fontSize: 14, letterSpacing: '-0.02em' }}>Schaaq</div>
-              <div style={{ color: '#6B7280', fontSize: 10, fontWeight: 500 }}>Scanner v0.1</div>
+              <div style={{ color: '#6B7280', fontSize: 10, fontWeight: 500 }}>Scanner{appVersion ? ` v${appVersion}` : ''}</div>
             </div>
           )}
         </div>

@@ -10,7 +10,7 @@
  */
 
 import { Command } from 'commander';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -32,7 +32,10 @@ import type { Finding } from './checks/types';
 // =============================================================================
 // Version
 // =============================================================================
-const VERSION = '0.1.0';
+// Read version from package.json (resolved from project root)
+const VERSION: string = JSON.parse(
+  readFileSync(join(__dirname, '..', 'package.json'), 'utf-8')
+).version ?? '0.0.0';
 
 // =============================================================================
 // CLI setup
@@ -83,6 +86,7 @@ program
       port,
       dataDir,
       uiDir: existsSync(uiDir) ? uiDir : undefined,
+      version: VERSION,
     });
 
     app.listen(port, () => {
