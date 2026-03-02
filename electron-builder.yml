@@ -1,0 +1,77 @@
+appId: com.schaaq.scanner
+productName: Schaaq Scanner
+copyright: Copyright © 2026 Schaaq
+
+# Keep asar off — better-sqlite3 native module needs direct filesystem access
+asar: false
+
+directories:
+  output: installer-output
+
+files:
+  - dist-electron/**/*
+  - dist/**/*
+  - ui/dist/**/*
+  - schaaq.ico
+  - "!**/node_modules/**/{CHANGELOG.md,README.md,README,readme.md,readme}"
+  - "!**/node_modules/**/{test,__tests__,tests,powered-test,example,examples}"
+  - "!**/node_modules/.bin"
+
+# Auto-updater: publish to GitHub Releases
+publish:
+  provider: github
+  owner: schaaq
+  repo: scanner
+
+# --- Windows ---
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: schaaq.ico
+  signAndEditExecutable: false
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  installerIcon: schaaq.ico
+  uninstallerIcon: schaaq.ico
+  installerHeaderIcon: schaaq.ico
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Schaaq Scanner
+
+# --- macOS ---
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  icon: build/icon.icns
+  category: public.app-category.developer-tools
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+
+dmg:
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+# --- Linux ---
+linux:
+  target:
+    - AppImage
+    - deb
+  icon: build/icons
+  category: Development
+
+# Rebuild native modules (better-sqlite3) for Electron
+npmRebuild: true

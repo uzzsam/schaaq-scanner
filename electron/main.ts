@@ -2,10 +2,11 @@
  * Schaaq Scanner — Electron Main Process
  *
  * Starts the Express server in-process and loads the UI in a BrowserWindow.
- * Uses dynamic import() to load the ESM server module.
+ * Includes auto-updater, structured logging (electron-log), and Sentry
+ * error tracking for production builds.
  *
  * The compiled server code uses extensionless ESM imports (e.g. './db/schema')
- * which require tsx's loader to resolve. We register it before importing
+ * which require a custom resolve hook. We register it before importing
  * any server modules.
  */
 
@@ -14,11 +15,61 @@ import { register } from 'node:module';
 // resolve correctly. The compiled server code omits .js extensions.
 register('./esm-resolve-hook.js', import.meta.url);
 
-import { app, BrowserWindow, shell, Tray, Menu, nativeImage } from 'electron';
+import { app, BrowserWindow, shell, Tray, Menu, nativeImage, dialog } from 'electron';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { existsSync, mkdirSync } from 'node:fs';
 import type { Server } from 'node:http';
+import log from 'electron-log';
+import electronUpdater from 'electron-updater';
+const { autoUpdater } = electronUpdater;
+
+// @sentry/electron is ESM-native but must run inside Electron (imports 'electron')
+// Using dynamic import so TypeScript doesn't complain about top-level await
+let Sentry: typeof import('@sentry/electron/main') | null = null;
+
+// ---------------------------------------------------------------------------
+// Logging setup (electron-log)
+// ---------------------------------------------------------------------------
+
+log.transports.file.level = 'info';
+log.transports.console.level = 'debug';
+log.transports.file.maxSize = 5 * 1024 * 1024; // 5 MB
+
+// Redirect console to electron-log in production
+if (app.isPackaged) {
+  Object.assign(console, log.functions);
+}
+
+// ---------------------------------------------------------------------------
+// Sentry error tracking (production only)
+// ---------------------------------------------------------------------------
+
+async function initSentry(): Promise<void> {
+  const dsn = process.env['SENTRY_DSN'] ?? '';
+
+  if (!app.isPackaged || !dsn) {
+    log.info('[sentry] Skipped — not packaged or no DSN configured');
+    return;
+  }
+
+  try {
+    Sentry = await import('@sentry/electron/main');
+    Sentry.init({
+      dsn,
+      release: `schaaq-scanner@${app.getVersion()}`,
+      environment: 'production',
+      sendDefaultPii: false,
+    });
+    log.info('[sentry] Initialised error tracking');
+  } catch (err) {
+    log.warn('[sentry] Failed to initialise:', err);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
 
 const PORT = 23847; // High port to avoid conflicts
 
@@ -43,6 +94,83 @@ function getDataPath(): string {
 }
 
 // ---------------------------------------------------------------------------
+// Auto-updater (electron-updater)
+// ---------------------------------------------------------------------------
+
+function setupAutoUpdater(): void {
+  // Only check for updates in packaged builds
+  if (!app.isPackaged) {
+    log.info('[updater] Skipping — running in dev mode');
+    return;
+  }
+
+  autoUpdater.logger = log;
+  autoUpdater.autoDownload = false; // Ask user before downloading
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('checking-for-update', () => {
+    log.info('[updater] Checking for updates…');
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    log.info('[updater] Update available:', info.version);
+    dialog
+      .showMessageBox(mainWindow!, {
+        type: 'info',
+        title: 'Update Available',
+        message: `Schaaq Scanner v${info.version} is available. Download now?`,
+        buttons: ['Download', 'Later'],
+        defaultId: 0,
+        cancelId: 1,
+      })
+      .then(({ response }) => {
+        if (response === 0) {
+          autoUpdater.downloadUpdate();
+        }
+      });
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    log.info('[updater] No updates available');
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    log.info(`[updater] Download progress: ${progress.percent.toFixed(1)}%`);
+    mainWindow?.setProgressBar(progress.percent / 100);
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    log.info('[updater] Update downloaded:', info.version);
+    mainWindow?.setProgressBar(-1); // Remove progress bar
+    dialog
+      .showMessageBox(mainWindow!, {
+        type: 'info',
+        title: 'Update Ready',
+        message: `Schaaq Scanner v${info.version} has been downloaded. Restart to apply the update?`,
+        buttons: ['Restart Now', 'Later'],
+        defaultId: 0,
+        cancelId: 1,
+      })
+      .then(({ response }) => {
+        if (response === 0) {
+          autoUpdater.quitAndInstall();
+        }
+      });
+  });
+
+  autoUpdater.on('error', (err) => {
+    log.error('[updater] Error:', err.message);
+  });
+
+  // Check for updates after a short delay
+  setTimeout(() => {
+    autoUpdater.checkForUpdates().catch((err) => {
+      log.warn('[updater] Failed to check for updates:', err.message);
+    });
+  }, 5_000);
+}
+
+// ---------------------------------------------------------------------------
 // Express server (in-process)
 // ---------------------------------------------------------------------------
 
@@ -54,6 +182,11 @@ async function startServer(): Promise<void> {
 
   // Ensure data directory exists
   mkdirSync(dataDir, { recursive: true });
+
+  log.info(`[server] Base path: ${basePath}`);
+  log.info(`[server] Server module: ${serverModulePath}`);
+  log.info(`[server] Data directory: ${dataDir}`);
+  log.info(`[server] UI directory: ${uiDir} (exists: ${existsSync(uiDir)})`);
 
   // Dynamic import of the ESM server module
   const moduleUrl = pathToFileURL(serverModulePath).href;
@@ -68,8 +201,7 @@ async function startServer(): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     try {
       expressServer = expressApp.listen(PORT, () => {
-        console.log(`[schaaq] Express server started on port ${PORT}`);
-        console.log(`[schaaq] Data directory: ${dataDir}`);
+        log.info(`[server] Express server started on port ${PORT}`);
         resolve();
       });
 
@@ -143,6 +275,19 @@ function createTray(): void {
     },
     { type: 'separator' },
     {
+      label: 'Check for Updates',
+      click: () => {
+        if (app.isPackaged) {
+          autoUpdater.checkForUpdates().catch((err) => {
+            log.warn('[updater] Manual check failed:', err.message);
+          });
+        } else {
+          dialog.showMessageBox({ message: 'Updates are only available in packaged builds.' });
+        }
+      },
+    },
+    { type: 'separator' },
+    {
       label: 'Quit',
       click: () => {
         tray?.destroy();
@@ -164,15 +309,24 @@ function createTray(): void {
 // ---------------------------------------------------------------------------
 
 app.whenReady().then(async () => {
+  log.info(`[app] Schaaq Scanner v${app.getVersion()} starting…`);
+  log.info(`[app] Packaged: ${app.isPackaged}`);
+  log.info(`[app] Platform: ${process.platform} ${process.arch}`);
+
+  await initSentry();
+
   createWindow();
   createTray();
+  setupAutoUpdater();
 
   try {
     await startServer();
     mainWindow?.loadURL(`http://localhost:${PORT}`);
     mainWindow?.show();
   } catch (error: any) {
-    console.error('[schaaq] Failed to start server:', error);
+    log.error('[app] Failed to start server:', error);
+    Sentry?.captureException(error);
+
     const errorHtml = `data:text/html;charset=utf-8,
       <html>
       <body style="background:#0a0f1a;color:#e2e8f0;font-family:system-ui;padding:40px;">
@@ -191,6 +345,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  log.info('[app] Shutting down…');
   // Gracefully close the Express server
   if (expressServer) {
     expressServer.close();

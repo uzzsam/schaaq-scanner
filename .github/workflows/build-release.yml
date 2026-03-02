@@ -1,0 +1,109 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build (e.g. v0.2.0)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  # --------------------------------------------------------------------------
+  # Build matrix: Windows, macOS, Linux
+  # --------------------------------------------------------------------------
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            build_cmd: "npm run electron:build:win"
+            artifact_glob: "installer-output/*.exe"
+          - os: macos-latest
+            build_cmd: "npm run electron:build:mac"
+            artifact_glob: "installer-output/*.dmg"
+          - os: ubuntu-latest
+            build_cmd: "npm run electron:build"
+            artifact_glob: "installer-output/*.AppImage"
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install UI dependencies
+        run: cd ui && npm ci
+
+      - name: Build server + UI
+        run: npm run build:all
+
+      - name: Build Electron
+        run: npm run build:electron
+
+      # Rebuild native modules for Electron ABI
+      - name: Rebuild native modules
+        run: npx electron-rebuild --force
+
+      # macOS: code signing
+      - name: Import macOS signing certificate
+        if: runner.os == 'macOS' && env.CSC_LINK != ''
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        run: echo "Certificate imported via electron-builder env vars"
+
+      # Build installer
+      - name: Package with electron-builder
+        run: ${{ matrix.build_cmd }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.os }}
+          path: ${{ matrix.artifact_glob }}
+          retention-days: 30
+
+  # --------------------------------------------------------------------------
+  # Create GitHub Release (only on tag push)
+  # --------------------------------------------------------------------------
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: artifacts/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

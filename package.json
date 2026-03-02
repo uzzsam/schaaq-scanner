@@ -37,8 +37,12 @@
     "start": "npx tsx src/cli.ts ui --port 3000",
     "start:prod": "npm run build:all && npx tsx src/cli.ts ui --port 3000",
     "electron:dev": "npm run build:full && npx electron-rebuild && electron .",
+    "electron:build": "npm run build:full && npx electron-rebuild --force && electron-builder --config.npmRebuild=false",
+    "electron:build:win": "npm run build:full && npx electron-rebuild --force && electron-builder --win --config.npmRebuild=false",
+    "electron:build:mac": "npm run build:full && npx electron-rebuild --force && electron-builder --mac --config.npmRebuild=false",
     "pack": "npm run build:full && npx electron-rebuild --force && electron-builder --win --dir --config.npmRebuild=false",
-    "dist": "npm run build:full && npx electron-rebuild --force && electron-builder --win --config.npmRebuild=false"
+    "dist": "npm run build:full && npx electron-rebuild --force && electron-builder --win --config.npmRebuild=false",
+    "release": "bash scripts/release.sh"
   },
   "dependencies": {
     "adm-zip": "^0.5.16",
@@ -56,6 +60,8 @@
     "multer": "^2.0.2",
     "papaparse": "^5.5.3",
     "pg": "^8.13.0",
+    "electron-log": "^5.2.4",
+    "electron-updater": "^6.3.9",
     "tsx": "^4.19.0",
     "uuid": "^13.0.0",
     "zod": "^4.3.6"
@@ -74,6 +80,7 @@
     "@types/pg": "^8.11.0",
     "@types/supertest": "^6.0.3",
     "@types/uuid": "^10.0.0",
+    "@sentry/electron": "^5.8.0",
     "concurrently": "^9.2.1",
     "electron": "^40.6.1",
     "electron-builder": "^26.8.1",
@@ -82,41 +89,6 @@
     "vitest": "^2.1.0"
   },
   "build": {
-    "appId": "com.schaaq.scanner",
-    "productName": "Schaaq Scanner",
-    "copyright": "Copyright © 2026 Schaaq",
-    "asar": false,
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "icon": "schaaq.ico",
-      "signAndEditExecutable": false
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "installerIcon": "schaaq.ico",
-      "uninstallerIcon": "schaaq.ico",
-      "installerHeaderIcon": "schaaq.ico",
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "Schaaq Scanner"
-    },
-    "directories": {
-      "output": "installer-output"
-    },
-    "files": [
-      "dist-electron/**/*",
-      "dist/**/*",
-      "ui/dist/**/*",
-      "schaaq.ico"
-    ],
-    "npmRebuild": true
+    "extends": "electron-builder.yml"
   }
 }
