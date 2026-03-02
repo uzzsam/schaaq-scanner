@@ -51,6 +51,25 @@ jobs:
       - name: Install UI dependencies
         run: cd ui && npm ci
 
+      # Generate platform icons from SVG source
+      - name: Generate icons
+        run: node scripts/generate-icons.mjs
+
+      # macOS: generate .icns from the PNG iconset
+      - name: Generate macOS .icns
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p build/icon.iconset
+          for size in 16 32 64 128 256 512; do
+            cp "build/icons/${size}x${size}.png" "build/icon.iconset/icon_${size}x${size}.png"
+            double=$((size * 2))
+            if [ -f "build/icons/${double}x${double}.png" ]; then
+              cp "build/icons/${double}x${double}.png" "build/icon.iconset/icon_${size}x${size}@2x.png"
+            fi
+          done
+          iconutil -c icns build/icon.iconset -o build/icon.icns
+          rm -rf build/icon.iconset
+
       - name: Build server + UI
         run: npm run build:all
 
