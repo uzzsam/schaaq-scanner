@@ -43,6 +43,9 @@ nsis:
   shortcutName: Schaaq Scanner
 
 # --- macOS ---
+# Signing & notarization disabled until Apple Developer credentials are available (Phase 6).
+# To re-enable: remove `identity: null` and `notarize: false`, set CSC_LINK secret,
+# and uncomment hardenedRuntime + entitlements.
 mac:
   target:
     - target: dmg
@@ -51,10 +54,12 @@ mac:
         - arm64
   icon: build/icon.icns
   category: public.app-category.developer-tools
-  hardenedRuntime: true
-  gatekeeperAssess: false
-  entitlements: build/entitlements.mac.plist
-  entitlementsInherit: build/entitlements.mac.plist
+  identity: null
+  notarize: false
+  # hardenedRuntime: true
+  # gatekeeperAssess: false
+  # entitlements: build/entitlements.mac.plist
+  # entitlementsInherit: build/entitlements.mac.plist
 
 dmg:
   contents:
