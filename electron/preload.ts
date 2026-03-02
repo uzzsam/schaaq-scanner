@@ -8,4 +8,7 @@ contextBridge.exposeInMainWorld('schaaq', {
 
   // Auto-updater controls
   checkForUpdates: () => ipcRenderer.invoke('updater:checkForUpdates'),
+
+  // Navigation (used by menu shortcuts from renderer)
+  navigate: (path: string) => ipcRenderer.send('app:navigate', path),
 });

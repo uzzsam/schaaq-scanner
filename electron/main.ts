@@ -15,7 +15,7 @@ import { register } from 'node:module';
 // resolve correctly. The compiled server code omits .js extensions.
 register('./esm-resolve-hook.js', import.meta.url);
 
-import { app, BrowserWindow, shell, Tray, Menu, nativeImage, dialog } from 'electron';
+import { app, BrowserWindow, shell, Tray, Menu, nativeImage, dialog, ipcMain } from 'electron';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
@@ -355,6 +355,133 @@ function createTray(): void {
 }
 
 // ---------------------------------------------------------------------------
+// Application menu
+// ---------------------------------------------------------------------------
+
+const isMac = process.platform === 'darwin';
+
+function showAboutDialog(): void {
+  dialog.showMessageBox({
+    type: 'info',
+    title: 'About Schaaq Scanner',
+    message: 'Schaaq Scanner',
+    detail: [
+      `Version: ${app.getVersion()}`,
+      `Electron: ${process.versions.electron}`,
+      `Node: ${process.versions.node}`,
+      `Chrome: ${process.versions.chrome}`,
+      `OS: ${process.platform} ${process.arch}`,
+      '',
+      '\u00A9 2024\u20132026 Schaaq',
+      'https://schaaq.com',
+    ].join('\n'),
+    icon: nativeImage.createFromPath(path.join(getAppBasePath(), 'schaaq.ico')),
+  });
+}
+
+function buildAppMenu(): void {
+  const template: Electron.MenuItemConstructorOptions[] = [
+    // --- File ---
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'New Project\u2026',
+          accelerator: 'CmdOrCtrl+N',
+          click: () => {
+            mainWindow?.loadURL(`http://localhost:${PORT}/projects/new`);
+            mainWindow?.show();
+          },
+        },
+        { type: 'separator' },
+        isMac ? { role: 'close' } : { label: 'Quit', accelerator: 'Ctrl+Q', role: 'quit' },
+      ],
+    },
+
+    // --- Edit ---
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' },
+      ],
+    },
+
+    // --- View ---
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        ...(!app.isPackaged
+          ? [{ role: 'toggleDevTools' as const }]
+          : []),
+        { type: 'separator' as const },
+        { role: 'zoomIn' as const },
+        { role: 'zoomOut' as const },
+        { role: 'resetZoom' as const },
+      ],
+    },
+
+    // --- Help ---
+    {
+      label: 'Help',
+      submenu: [
+        {
+          label: 'Getting Started',
+          click: () => shell.openExternal('https://schaaq.com/docs'),
+        },
+        {
+          label: 'Changelog',
+          click: () => shell.openExternal('https://github.com/uzzsam/schaaq-scanner/releases'),
+        },
+        {
+          label: 'Report Issue',
+          click: () => shell.openExternal('https://github.com/uzzsam/schaaq-scanner/issues'),
+        },
+        { type: 'separator' },
+        {
+          label: 'About Schaaq Scanner',
+          click: () => showAboutDialog(),
+        },
+      ],
+    },
+  ];
+
+  // macOS: prepend app menu with About + Quit
+  if (isMac) {
+    template.unshift({
+      label: app.name,
+      submenu: [
+        { label: 'About Schaaq Scanner', click: () => showAboutDialog() },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    });
+  }
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+// ---------------------------------------------------------------------------
+// IPC handlers
+// ---------------------------------------------------------------------------
+
+ipcMain.on('app:navigate', (_event, navPath: string) => {
+  mainWindow?.loadURL(`http://localhost:${PORT}${navPath}`);
+});
+
+// ---------------------------------------------------------------------------
 // App lifecycle
 // ---------------------------------------------------------------------------
 
@@ -368,8 +495,9 @@ app.whenReady().then(async () => {
   // 1. Show splash immediately — visible while server boots
   splashWindow = createSplashWindow();
 
-  // 2. Create main window (hidden) and tray
+  // 2. Create main window (hidden), menu, and tray
   createWindow();
+  buildAppMenu();
   createTray();
   setupAutoUpdater();
 
