@@ -1,5 +1,6 @@
 import type { SchemaData } from '../adapters/types';
 import type { Finding, Evidence, ScannerCheck, ScannerConfig, CostCategory } from './types';
+import { getDbContext } from './db-context';
 
 // =============================================================================
 // Audit column pattern groups
@@ -43,6 +44,7 @@ export const p7MissingAudit: ScannerCheck = {
     'Identifies tables that lack standard audit columns (created/updated timestamps or user tracking).',
 
   execute(schema: SchemaData, _config: ScannerConfig): Finding[] {
+    const ctx = getDbContext(schema);
     const tables = schema.tables.filter((t) => t.type === 'table');
     if (tables.length === 0) return [];
 
@@ -125,8 +127,7 @@ export const p7MissingAudit: ScannerCheck = {
         affectedObjects,
         totalObjects,
         ratio,
-        remediation:
-          'Add created_at/updated_at timestamp columns and optionally created_by/updated_by user-tracking columns to all tables to support audit and compliance requirements.',
+        remediation: ctx.remediation.missingAudit,
         costCategories,
         costWeights,
       },
@@ -147,6 +148,8 @@ export const p7NoConstraints: ScannerCheck = {
   execute(schema: SchemaData, _config: ScannerConfig): Finding[] {
     // CSV/Excel uploads have no native constraints — skip this check
     if (schema.databaseType === 'csv') return [];
+
+    const ctx = getDbContext(schema);
 
     const tables = schema.tables.filter((t) => t.type === 'table');
     if (tables.length === 0) return [];
@@ -205,8 +208,7 @@ export const p7NoConstraints: ScannerCheck = {
         affectedObjects,
         totalObjects,
         ratio,
-        remediation:
-          'Add appropriate constraints (primary keys, foreign keys, check constraints, unique constraints) to enforce data integrity at the database level.',
+        remediation: ctx.remediation.noConstraints,
         costCategories,
         costWeights,
       },

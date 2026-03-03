@@ -185,7 +185,7 @@ export function ScanResults() {
         <div>
           <h1 style={{ color: 'white', fontSize: 20, fontWeight: 700, margin: 0 }}>Scan Results</h1>
           <p style={{ color: '#6B7280', fontSize: 12, margin: '4px 0 0' }}>
-            {scan.is_dry_run ? '(Dry Run) · ' : ''}{scan.source === 'csv' ? 'CSV Upload · ' : scan.source === 'powerbi' ? 'Power BI Template · ' : scan.source === 'tableau' ? 'Tableau Workbook · ' : scan.source === 'pipeline' ? 'Pipeline Analysis · ' : ''}{scan.schema_count ?? '?'} schemas &middot; {scan.schema_tables ?? '?'} tables &middot; {scan.schema_columns ?? '?'} columns
+            {scan.is_dry_run ? '(Dry Run) · ' : ''}{scan.db_version ? <span style={{ color: '#9CA3AF', fontWeight: 500 }}>{scan.db_version} &middot; </span> : scan.source === 'csv' ? 'CSV Upload · ' : scan.source === 'powerbi' ? 'Power BI Template · ' : scan.source === 'tableau' ? 'Tableau Workbook · ' : scan.source === 'pipeline' ? 'Pipeline Analysis · ' : ''}{scan.schema_count ?? '?'} schemas &middot; {scan.schema_tables ?? '?'} tables &middot; {scan.schema_columns ?? '?'} columns
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>

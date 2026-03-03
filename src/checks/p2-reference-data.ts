@@ -6,6 +6,7 @@ import type {
   ScannerCheck,
   ScannerConfig,
 } from './types';
+import { getDbContext } from './db-context';
 
 // =============================================================================
 // String-like normalized types for uncontrolled vocab detection
@@ -41,6 +42,8 @@ export const p2TypeInconsistency: ScannerCheck = {
     'Detect columns with the same name but different types across tables.',
 
   execute(schema: SchemaData, _config: ScannerConfig): Finding[] {
+    const ctx = getDbContext(schema);
+
     // Group columns by name
     const columnGroups = new Map<
       string,
@@ -101,8 +104,7 @@ export const p2TypeInconsistency: ScannerCheck = {
         affectedObjects: occurrences.length,
         totalObjects: occurrences.length,
         ratio: 1,
-        remediation:
-          'Standardise the column type across all tables. Create a shared data dictionary defining canonical types for common columns.',
+        remediation: ctx.remediation.typeInconsistency,
         costCategories: TYPE_INCONSISTENCY_ACTIVE_CATEGORIES,
         costWeights: { ...TYPE_INCONSISTENCY_COST_WEIGHTS },
       });

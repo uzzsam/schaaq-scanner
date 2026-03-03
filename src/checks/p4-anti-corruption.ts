@@ -6,6 +6,7 @@ import type {
   ScannerCheck,
   ScannerConfig,
 } from './types';
+import { getDbContext } from './db-context';
 
 // =============================================================================
 // CSV / Import indicator patterns
@@ -62,6 +63,7 @@ export const p4CsvImportPattern: ScannerCheck = {
     // When source IS CSV, flagging CSV patterns is circular
     if (schema.databaseType === 'csv') return [];
 
+    const ctx = getDbContext(schema);
     const patterns = config.thresholds.csvIndicatorPatterns ?? DEFAULT_CSV_PATTERNS;
     const lowerPatterns = patterns.map((p) => p.toLowerCase());
 
@@ -149,9 +151,7 @@ export const p4CsvImportPattern: ScannerCheck = {
         affectedObjects: affectedCount,
         totalObjects: totalTables,
         ratio,
-        remediation:
-          'Replace ad-hoc CSV imports with proper ETL pipelines. Migrate staging/temp tables into governed schemas ' +
-          'with appropriate naming conventions and lifecycle management.',
+        remediation: ctx.remediation.csvImportPattern,
         costCategories: CSV_IMPORT_ACTIVE_CATEGORIES,
         costWeights: { ...CSV_IMPORT_COST_WEIGHTS },
       },
@@ -188,6 +188,8 @@ export const p4IslandTables: ScannerCheck = {
     'Detect tables with no foreign key relationships (neither as source nor target), indicating disconnected data islands.',
 
   execute(schema: SchemaData, _config: ScannerConfig): Finding[] {
+    const ctx = getDbContext(schema);
+
     // Only consider actual tables, not views or materialized views
     const actualTables = schema.tables.filter((t) => t.type === 'table');
 
@@ -252,9 +254,7 @@ export const p4IslandTables: ScannerCheck = {
         affectedObjects: affectedCount,
         totalObjects: totalCount,
         ratio,
-        remediation:
-          'Review island tables for missing FK relationships. Add foreign keys where logical relationships exist, ' +
-          'or document why tables are intentionally standalone (e.g. configuration, lookup).',
+        remediation: ctx.remediation.islandTables,
         costCategories: ISLAND_TABLES_ACTIVE_CATEGORIES,
         costWeights: { ...ISLAND_TABLES_COST_WEIGHTS },
       },
@@ -290,6 +290,8 @@ export const p4WideTables: ScannerCheck = {
     'Detect tables with 30 or more columns, which often indicate denormalized or poorly modelled entities.',
 
   execute(schema: SchemaData, _config: ScannerConfig): Finding[] {
+    const ctx = getDbContext(schema);
+
     // Count columns per table
     const columnCounts = new Map<string, { schema: string; table: string; count: number }>();
     for (const col of schema.columns) {
@@ -353,9 +355,7 @@ export const p4WideTables: ScannerCheck = {
         affectedObjects: affectedCount,
         totalObjects: totalTables,
         ratio,
-        remediation:
-          'Decompose wide tables into normalised entities with clear single responsibilities. ' +
-          'Extract repeated column groups into child tables with FK relationships.',
+        remediation: ctx.remediation.wideTables,
         costCategories: WIDE_TABLES_ACTIVE_CATEGORIES,
         costWeights: { ...WIDE_TABLES_COST_WEIGHTS },
       },

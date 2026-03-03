@@ -1,5 +1,6 @@
 import type { SchemaData } from '../adapters/types';
 import type { Finding, Evidence, ScannerCheck, ScannerConfig, CostCategory } from './types';
+import { getDbContext } from './db-context';
 
 // =============================================================================
 // p6HighNullRate
@@ -12,6 +13,7 @@ export const p6HighNullRate: ScannerCheck = {
     'Identifies columns with a null fraction exceeding the configured threshold, indicating potential data quality issues.',
 
   execute(schema: SchemaData, config: ScannerConfig): Finding[] {
+    const ctx = getDbContext(schema);
     const stats = schema.columnStatistics;
     if (!stats || stats.length === 0) return [];
 
@@ -80,8 +82,7 @@ export const p6HighNullRate: ScannerCheck = {
         affectedObjects,
         totalObjects,
         ratio,
-        remediation:
-          'Investigate high-null columns for missing data pipelines, incorrect NULL defaults, or unused columns that should be removed.',
+        remediation: ctx.remediation.highNullRate,
         costCategories,
         costWeights,
       },
@@ -102,6 +103,8 @@ export const p6NoIndexes: ScannerCheck = {
   execute(schema: SchemaData, _config: ScannerConfig): Finding[] {
     // CSV/Excel uploads have no indexes by definition — skip this check
     if (schema.databaseType === 'csv') return [];
+
+    const ctx = getDbContext(schema);
 
     const tables = schema.tables.filter((t) => t.type === 'table');
     if (tables.length === 0) return [];
@@ -176,8 +179,7 @@ export const p6NoIndexes: ScannerCheck = {
         affectedObjects,
         totalObjects,
         ratio,
-        remediation:
-          'Add appropriate indexes based on query patterns. At minimum, ensure primary key indexes exist and consider indexes on frequently filtered or joined columns.',
+        remediation: ctx.remediation.noIndexes,
         costCategories,
         costWeights,
       },

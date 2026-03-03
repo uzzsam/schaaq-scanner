@@ -1,5 +1,6 @@
 import type { SchemaData } from '../adapters/types';
 import type { Finding, Evidence, ScannerCheck, ScannerConfig, CostCategory } from './types';
+import { getDbContext } from './db-context';
 
 // =============================================================================
 // Naming style detection
@@ -30,6 +31,7 @@ export const p5NamingViolations: ScannerCheck = {
     'Detects columns that deviate from the dominant naming convention used across the schema.',
 
   execute(schema: SchemaData, _config: ScannerConfig): Finding[] {
+    const ctx = getDbContext(schema);
     const columns = schema.columns;
     if (columns.length === 0) return [];
 
@@ -108,8 +110,7 @@ export const p5NamingViolations: ScannerCheck = {
         affectedObjects,
         totalObjects,
         ratio,
-        remediation:
-          'Adopt a consistent naming convention across all schemas and enforce it through DDL review or linting tools.',
+        remediation: ctx.remediation.namingViolations,
         costCategories,
         costWeights,
       },
@@ -127,6 +128,7 @@ export const p5MissingPk: ScannerCheck = {
   description: 'Identifies tables that lack a primary key constraint.',
 
   execute(schema: SchemaData, _config: ScannerConfig): Finding[] {
+    const ctx = getDbContext(schema);
     const isCsvSource = schema.databaseType === 'csv';
 
     const tables = schema.tables.filter((t) => t.type === 'table');
@@ -192,9 +194,7 @@ export const p5MissingPk: ScannerCheck = {
         affectedObjects,
         totalObjects,
         ratio,
-        remediation: isCsvSource
-          ? 'Consider adding an explicit ID or key column to your CSV files to uniquely identify each row. This enables data lineage tracking and deduplication.'
-          : 'Add primary key constraints to all tables to ensure row uniqueness and support efficient joins.',
+        remediation: ctx.remediation.missingPk,
         costCategories,
         costWeights,
       },
@@ -213,6 +213,7 @@ export const p5Undocumented: ScannerCheck = {
     'Detects tables that lack comments/documentation. Only runs when the database supports and provides comment metadata.',
 
   execute(schema: SchemaData, _config: ScannerConfig): Finding[] {
+    const ctx = getDbContext(schema);
     // Skip if comments metadata is not available
     if (!schema.comments || schema.comments.length === 0) return [];
 
@@ -274,8 +275,7 @@ export const p5Undocumented: ScannerCheck = {
         affectedObjects,
         totalObjects,
         ratio,
-        remediation:
-          'Add COMMENT ON TABLE statements to describe the purpose and contents of each table.',
+        remediation: ctx.remediation.undocumented,
         costCategories,
         costWeights,
       },
