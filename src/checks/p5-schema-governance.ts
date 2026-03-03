@@ -127,6 +127,8 @@ export const p5MissingPk: ScannerCheck = {
   description: 'Identifies tables that lack a primary key constraint.',
 
   execute(schema: SchemaData, _config: ScannerConfig): Finding[] {
+    const isCsvSource = schema.databaseType === 'csv';
+
     const tables = schema.tables.filter((t) => t.type === 'table');
     if (tables.length === 0) return [];
 
@@ -150,6 +152,13 @@ export const p5MissingPk: ScannerCheck = {
     if (affectedObjects >= 10) severity = 'critical';
     else if (affectedObjects >= 5) severity = 'major';
     else severity = 'minor';
+
+    // CSV sources get downgraded severity — heuristic PK detection is best-effort
+    if (isCsvSource) {
+      if (severity === 'critical') severity = 'major';
+      else if (severity === 'major') severity = 'minor';
+      else severity = 'info';
+    }
 
     const costWeights: Record<CostCategory, number> = {
       firefighting: 0.2,
@@ -183,8 +192,9 @@ export const p5MissingPk: ScannerCheck = {
         affectedObjects,
         totalObjects,
         ratio,
-        remediation:
-          'Add primary key constraints to all tables to ensure row uniqueness and support efficient joins.',
+        remediation: isCsvSource
+          ? 'Consider adding an explicit ID or key column to your CSV files to uniquely identify each row. This enables data lineage tracking and deduplication.'
+          : 'Add primary key constraints to all tables to ensure row uniqueness and support efficient joins.',
         costCategories,
         costWeights,
       },

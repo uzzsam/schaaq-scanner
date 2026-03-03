@@ -15,11 +15,18 @@ export const p6HighNullRate: ScannerCheck = {
     const stats = schema.columnStatistics;
     if (!stats || stats.length === 0) return [];
 
-    const threshold = config.thresholds.nullRateThreshold ?? 0.3;
+    const isCsvSource = schema.databaseType === 'csv';
+    const threshold = isCsvSource
+      ? (config.thresholds.nullRateThreshold ?? 0.7)
+      : (config.thresholds.nullRateThreshold ?? 0.3);
 
-    const highNull = stats.filter(
-      (s) => s.nullFraction !== null && s.nullFraction > threshold,
-    );
+    const highNull = stats.filter((s) => {
+      if (s.nullFraction === null) return false;
+      if (s.nullFraction <= threshold) return false;
+      // For CSV: skip nearly-empty columns (clearly optional/unused fields)
+      if (isCsvSource && s.nullFraction >= 0.95) return false;
+      return true;
+    });
 
     const affectedObjects = highNull.length;
     const totalObjects = stats.length;
@@ -32,6 +39,13 @@ export const p6HighNullRate: ScannerCheck = {
     if (affectedObjects >= 50) severity = 'critical';
     else if (affectedObjects >= 20) severity = 'major';
     else severity = 'minor';
+
+    // CSV sources get downgraded severity — high nulls in optional fields are normal
+    if (isCsvSource) {
+      if (severity === 'critical') severity = 'major';
+      else if (severity === 'major') severity = 'minor';
+      else severity = 'info';
+    }
 
     const costWeights: Record<CostCategory, number> = {
       firefighting: 0.2,
@@ -86,6 +100,9 @@ export const p6NoIndexes: ScannerCheck = {
     'Finds tables with significant data (>100 rows) that have no indexes, leading to full table scans.',
 
   execute(schema: SchemaData, _config: ScannerConfig): Finding[] {
+    // CSV/Excel uploads have no indexes by definition — skip this check
+    if (schema.databaseType === 'csv') return [];
+
     const tables = schema.tables.filter((t) => t.type === 'table');
     if (tables.length === 0) return [];
 

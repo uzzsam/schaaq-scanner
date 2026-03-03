@@ -145,6 +145,9 @@ export const p7NoConstraints: ScannerCheck = {
     'Finds tables that have zero constraints of any type (no PK, FK, CHECK, or UNIQUE), indicating lack of data integrity enforcement.',
 
   execute(schema: SchemaData, _config: ScannerConfig): Finding[] {
+    // CSV/Excel uploads have no native constraints — skip this check
+    if (schema.databaseType === 'csv') return [];
+
     const tables = schema.tables.filter((t) => t.type === 'table');
     if (tables.length === 0) return [];
 

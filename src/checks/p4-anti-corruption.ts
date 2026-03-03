@@ -59,6 +59,9 @@ export const p4CsvImportPattern: ScannerCheck = {
     'Detect tables and columns whose names suggest ad-hoc CSV imports or staging data that has not been properly integrated.',
 
   execute(schema: SchemaData, config: ScannerConfig): Finding[] {
+    // When source IS CSV, flagging CSV patterns is circular
+    if (schema.databaseType === 'csv') return [];
+
     const patterns = config.thresholds.csvIndicatorPatterns ?? DEFAULT_CSV_PATTERNS;
     const lowerPatterns = patterns.map((p) => p.toLowerCase());
 

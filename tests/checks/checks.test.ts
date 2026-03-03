@@ -597,6 +597,137 @@ describe('P7 — No Constraints', () => {
 });
 
 // =============================================================================
+// CSV Source — checks should not over-penalise optional null fields
+// =============================================================================
+describe('CSV source — null rate tolerance', () => {
+  const csvSchema = makeSchemaData({
+    databaseType: 'csv',
+    databaseVersion: 'CSV/Excel Upload',
+    columnStatistics: [
+      // 80% null — typical optional field (e.g. secondary_email)
+      { schema: 'upload', table: 'contacts', column: 'secondary_email', nullFraction: 0.8, distinctCount: 15, avgWidth: null, correlation: null },
+      // 96% null — clearly unused optional field, should be skipped entirely
+      { schema: 'upload', table: 'contacts', column: 'fax_number', nullFraction: 0.96, distinctCount: 3, avgWidth: null, correlation: null },
+      // 5% null — populated field, should never trigger
+      { schema: 'upload', table: 'contacts', column: 'name', nullFraction: 0.05, distinctCount: 80, avgWidth: null, correlation: null },
+    ],
+  });
+
+  const pgSchema = makeSchemaData({
+    databaseType: 'postgresql',
+    databaseVersion: '16.0',
+    columnStatistics: [
+      { schema: 'public', table: 'contacts', column: 'secondary_email', nullFraction: 0.8, distinctCount: 15, avgWidth: 20, correlation: 0.1 },
+      { schema: 'public', table: 'contacts', column: 'fax_number', nullFraction: 0.96, distinctCount: 3, avgWidth: 12, correlation: 0.1 },
+      { schema: 'public', table: 'contacts', column: 'name', nullFraction: 0.05, distinctCount: 80, avgWidth: 10, correlation: 0.9 },
+    ],
+  });
+
+  it('CSV with 80% null optional columns produces fewer findings than PostgreSQL', () => {
+    const csvFindings = p6HighNullRate.execute(csvSchema, cfg);
+    const pgFindings = p6HighNullRate.execute(pgSchema, cfg);
+
+    // PostgreSQL should flag both secondary_email (80%) and fax_number (96%)
+    expect(pgFindings.length).toBeGreaterThanOrEqual(1);
+    expect(pgFindings[0].affectedObjects).toBe(2);
+
+    // CSV should flag at most secondary_email (80% > 70% threshold)
+    // but skip fax_number (96% >= 95% threshold) entirely
+    if (csvFindings.length > 0) {
+      expect(csvFindings[0].affectedObjects).toBe(1);
+    }
+  });
+
+  it('CSV findings have downgraded severity compared to PostgreSQL', () => {
+    const csvFindings = p6HighNullRate.execute(csvSchema, cfg);
+    const pgFindings = p6HighNullRate.execute(pgSchema, cfg);
+
+    if (csvFindings.length > 0 && pgFindings.length > 0) {
+      const severityRank = { info: 0, minor: 1, major: 2, critical: 3 };
+      expect(severityRank[csvFindings[0].severity]).toBeLessThan(
+        severityRank[pgFindings[0].severity],
+      );
+    }
+  });
+
+  it('CSV with all columns below 70% null produces no findings', () => {
+    const schema = makeSchemaData({
+      databaseType: 'csv',
+      columnStatistics: [
+        { schema: 'upload', table: 'data', column: 'notes', nullFraction: 0.6, distinctCount: 30, avgWidth: null, correlation: null },
+        { schema: 'upload', table: 'data', column: 'phone', nullFraction: 0.4, distinctCount: 50, avgWidth: null, correlation: null },
+      ],
+    });
+    const findings = p6HighNullRate.execute(schema, cfg);
+    expect(findings).toHaveLength(0);
+  });
+});
+
+describe('CSV source — checks that should be skipped entirely', () => {
+  const csvSchema = makeSchemaData({
+    databaseType: 'csv',
+    databaseVersion: 'CSV/Excel Upload',
+    tables: [makeTable('upload', 'stg_customers'), makeTable('upload', 'csv_data')],
+    columns: [
+      makeColumn('upload', 'stg_customers', 'id'),
+      makeColumn('upload', 'stg_customers', 'source_file', 'varchar'),
+      makeColumn('upload', 'csv_data', 'id'),
+    ],
+    constraints: [],
+    indexes: [],
+    tableStatistics: [
+      { schema: 'upload', table: 'stg_customers', rowCount: 500, deadRows: null, lastVacuum: null, lastAnalyze: null, lastAutoAnalyze: null },
+      { schema: 'upload', table: 'csv_data', rowCount: 200, deadRows: null, lastVacuum: null, lastAnalyze: null, lastAutoAnalyze: null },
+    ],
+  });
+
+  it('p6NoIndexes returns empty for CSV source', () => {
+    const findings = p6NoIndexes.execute(csvSchema, cfg);
+    expect(findings).toHaveLength(0);
+  });
+
+  it('p7NoConstraints returns empty for CSV source', () => {
+    const findings = p7NoConstraints.execute(csvSchema, cfg);
+    expect(findings).toHaveLength(0);
+  });
+
+  it('p4CsvImportPattern returns empty for CSV source', () => {
+    const findings = p4CsvImportPattern.execute(csvSchema, cfg);
+    expect(findings).toHaveLength(0);
+  });
+});
+
+describe('CSV source — p5MissingPk severity downgrade', () => {
+  it('CSV source downgrades severity and uses CSV-specific remediation', () => {
+    const csvSchema = makeSchemaData({
+      databaseType: 'csv',
+      tables: [makeTable('upload', 'contacts'), makeTable('upload', 'notes')],
+      constraints: [],
+    });
+    const pgSchema = makeSchemaData({
+      databaseType: 'postgresql',
+      tables: [makeTable('public', 'contacts'), makeTable('public', 'notes')],
+      constraints: [],
+    });
+
+    const csvFindings = p5MissingPk.execute(csvSchema, cfg);
+    const pgFindings = p5MissingPk.execute(pgSchema, cfg);
+
+    expect(csvFindings.length).toBeGreaterThanOrEqual(1);
+    expect(pgFindings.length).toBeGreaterThanOrEqual(1);
+
+    // CSV severity should be lower
+    const severityRank = { info: 0, minor: 1, major: 2, critical: 3 };
+    expect(severityRank[csvFindings[0].severity]).toBeLessThan(
+      severityRank[pgFindings[0].severity],
+    );
+
+    // CSV remediation should mention CSV files
+    expect(csvFindings[0].remediation).toContain('CSV');
+  });
+});
+
+// =============================================================================
 // ALL_CHECKS array validation
 // =============================================================================
 describe('ALL_CHECKS array', () => {
