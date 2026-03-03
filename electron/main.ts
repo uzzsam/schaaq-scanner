@@ -289,6 +289,7 @@ function createWindow(): void {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: false, // Allow ESM preload (contextIsolation is the security boundary)
       preload: path.join(basePath, 'dist-electron', 'preload.js'),
     },
   });
@@ -301,6 +302,21 @@ function createWindow(): void {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+  });
+
+  // Notify renderer when fullscreen state changes
+  mainWindow.on('enter-full-screen', () => {
+    mainWindow?.webContents.send('window:fullscreenChanged', true);
+  });
+  mainWindow.on('leave-full-screen', () => {
+    mainWindow?.webContents.send('window:fullscreenChanged', false);
+  });
+
+  // Escape exits fullscreen (F11 toggles via menu accelerator)
+  mainWindow.webContents.on('before-input-event', (_event, input) => {
+    if (input.key === 'Escape' && mainWindow?.isFullScreen()) {
+      mainWindow.setFullScreen(false);
+    }
   });
 }
 
@@ -423,9 +439,28 @@ function buildAppMenu(): void {
           ? [{ role: 'toggleDevTools' as const }]
           : []),
         { type: 'separator' as const },
+        { role: 'togglefullscreen' as const },
+        { type: 'separator' as const },
         { role: 'zoomIn' as const },
         { role: 'zoomOut' as const },
         { role: 'resetZoom' as const },
+      ],
+    },
+
+    // --- Window ---
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        ...(isMac
+          ? [
+              { type: 'separator' as const },
+              { role: 'front' as const },
+            ]
+          : [
+              { role: 'close' as const },
+            ]),
       ],
     },
 
@@ -490,6 +525,12 @@ ipcMain.handle('updater:checkForUpdates', () => {
 
 ipcMain.on('app:navigate', (_event, navPath: string) => {
   mainWindow?.loadURL(`http://localhost:${PORT}${navPath}`);
+});
+
+ipcMain.on('window:exitFullscreen', () => {
+  if (mainWindow?.isFullScreen()) {
+    mainWindow.setFullScreen(false);
+  }
 });
 
 // ---------------------------------------------------------------------------

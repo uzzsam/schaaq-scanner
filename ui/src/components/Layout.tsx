@@ -52,6 +52,7 @@ function NavButton({
 export function Layout({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [appVersion, setAppVersion] = useState<string>('');
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -66,6 +67,19 @@ export function Layout({ children }: { children: ReactNode }) {
         .catch(() => {});
     }
   }, []);
+
+  // Track fullscreen state from Electron
+  useEffect(() => {
+    if (!window.schaaq?.onFullscreenChange) return;
+    const cleanup = window.schaaq.onFullscreenChange(setIsFullscreen);
+    return cleanup;
+  }, []);
+
+  const handleExitFullscreen = () => {
+    if (window.schaaq?.exitFullscreen) {
+      window.schaaq.exitFullscreen();
+    }
+  };
 
   // Detect scan context from URL: /scans/:scanId/*
   const scanMatch = location.pathname.match(/\/scans\/([^/]+)/);
@@ -175,6 +189,18 @@ export function Layout({ children }: { children: ReactNode }) {
             collapsed={collapsed}
             onClick={() => navigate('/projects')}
           />
+
+          {/* Spacer pushes settings to bottom */}
+          <div style={{ flex: 1 }} />
+
+          {/* Settings */}
+          <NavButton
+            active={activePath.startsWith('/settings')}
+            icon="⚙"
+            label="Settings"
+            collapsed={collapsed}
+            onClick={() => navigate('/settings/branding')}
+          />
         </div>
 
         {/* Footer */}
@@ -200,6 +226,48 @@ export function Layout({ children }: { children: ReactNode }) {
           {children}
         </div>
       </div>
+
+      {/* Floating exit-fullscreen button */}
+      {isFullscreen && (
+        <button
+          onClick={handleExitFullscreen}
+          title="Exit fullscreen (Esc)"
+          style={{
+            position: 'fixed',
+            top: 12,
+            right: 12,
+            width: 36,
+            height: 36,
+            borderRadius: '50%',
+            border: 'none',
+            background: 'rgba(107,114,128,0.7)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            transition: 'background 0.15s ease, transform 0.15s ease',
+            padding: 0,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(107,114,128,0.95)';
+            e.currentTarget.style.transform = 'scale(1.1)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(107,114,128,0.7)';
+            e.currentTarget.style.transform = 'scale(1)';
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path
+              d="M4 4L12 12M12 4L4 12"
+              stroke="#111827"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }

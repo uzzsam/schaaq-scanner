@@ -28,6 +28,12 @@ export interface SchaaqBridge {
     filePath?: string;
     reason?: string;
   }>;
+
+  /** Exit fullscreen mode. */
+  exitFullscreen: () => void;
+
+  /** Listen for fullscreen state changes. Returns a cleanup function. */
+  onFullscreenChange: (callback: (isFullscreen: boolean) => void) => () => void;
 }
 
 declare global {
