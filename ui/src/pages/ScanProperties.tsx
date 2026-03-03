@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { fetchScan, fetchFindings, fetchEngineResult, type Scan, type Finding } from '../api/client';
+import { fetchScan, fetchFindings, fetchEngineResult, fetchStrengths, type Scan, type Finding, type Strength } from '../api/client';
 import { PageHeader, Card } from '../components/Shared';
 import { PropertyRadar } from '../components/PropertyRadar';
 import { ScoreBar } from '../components/Badges';
@@ -14,6 +14,7 @@ export function ScanProperties() {
   const [scan, setScan] = useState<Scan | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
   const [engineResult, setEngineResult] = useState<any>(null);
+  const [strengths, setStrengths] = useState<Strength[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
@@ -26,8 +27,9 @@ export function ScanProperties() {
       fetchScan(scanId),
       fetchFindings(scanId),
       fetchEngineResult(scanId).catch(() => null),
+      fetchStrengths(scanId).catch(() => []),
     ])
-      .then(([s, f, r]) => { setScan(s); setFindings(f); setEngineResult(r); })
+      .then(([s, f, r, st]) => { setScan(s); setFindings(f); setEngineResult(r); setStrengths(st); })
       .catch((err) => setError(err?.message ?? 'Failed to load properties'))
       .finally(() => setLoading(false));
   }, [scanId]);
@@ -103,6 +105,7 @@ export function ScanProperties() {
           {propertyData.map((p) => {
             const isExpanded = expanded === p.num;
             const sortedFindings = [...p.findings].sort((a, b) => getFindingCost(b) - getFindingCost(a));
+            const pStrengths = strengths.filter((s) => s.property === p.num);
 
             return (
               <Card key={p.num} style={{ overflow: 'hidden' }}>
@@ -160,14 +163,47 @@ export function ScanProperties() {
                   </div>
                 </div>
 
-                {/* Expanded findings list */}
+                {/* Expanded findings + strengths list */}
                 {isExpanded && (
                   <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                    {sortedFindings.length === 0 ? (
+                    {/* Strengths for this property */}
+                    {pStrengths.length > 0 && (
+                      <div style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div style={{
+                          padding: '8px 16px', background: 'rgba(16,185,129,0.04)',
+                          borderBottom: '1px solid rgba(255,255,255,0.04)',
+                          display: 'flex', alignItems: 'center', gap: 6,
+                        }}>
+                          <span style={{ fontSize: 11, color: '#10B981' }}>✓</span>
+                          <span className="label-text" style={{ color: '#10B981' }}>Strengths</span>
+                        </div>
+                        {pStrengths.map((s) => (
+                          <div key={s.id} style={{
+                            padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 10,
+                            borderBottom: '1px solid rgba(255,255,255,0.04)',
+                          }}>
+                            <span style={{ color: '#10B981', fontSize: 13, fontWeight: 500, flex: 1 }}>{s.title}</span>
+                            <span style={{ color: '#6B7280', fontSize: 11, maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {s.detail ?? s.description}
+                            </span>
+                            {s.metric && (
+                              <span style={{
+                                fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 600,
+                                color: '#10B981', background: 'rgba(16,185,129,0.08)',
+                                padding: '1px 6px', borderRadius: 3, flexShrink: 0,
+                              }}>{s.metric}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Findings for this property */}
+                    {sortedFindings.length === 0 && pStrengths.length === 0 ? (
                       <div style={{ padding: 16, color: '#6B7280', fontSize: 12, textAlign: 'center' }}>
                         No findings for this property.
                       </div>
-                    ) : (
+                    ) : sortedFindings.length > 0 ? (
                       <>
                         {/* Column header */}
                         <div style={{
@@ -197,7 +233,7 @@ export function ScanProperties() {
                           </div>
                         ))}
                       </>
-                    )}
+                    ) : null}
                   </div>
                 )}
               </Card>

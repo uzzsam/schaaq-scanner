@@ -455,6 +455,22 @@ export function scanRoutes(
     }
   });
 
+  // Get strengths (positive observations) for a scan
+  router.get('/:id/strengths', (req, res) => {
+    try {
+      const scanId = req.params.id as string;
+      const scan = repo.getScan(scanId);
+      if (!scan) {
+        res.status(404).json({ error: 'Scan not found' });
+        return;
+      }
+      const strengths = repo.getStrengths(scanId);
+      res.json(strengths);
+    } catch (err: any) {
+      res.status(500).json({ error: safeError(err, 'GET /api/scans/:id/strengths') });
+    }
+  });
+
   // Get transform findings for a scan
   router.get('/:id/transform-findings', validateQuery(transformFindingsQuerySchema), (req, res) => {
     try {

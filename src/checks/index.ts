@@ -43,4 +43,5 @@ export {
   p7NoConstraints,
 };
 
-export type { ScannerCheck, Finding, Evidence, ScannerConfig, SynonymGroup, CostCategory } from './types';
+export { computeStrengths } from './strengths';
+export type { ScannerCheck, Finding, Evidence, ScannerConfig, SynonymGroup, CostCategory, Strength } from './types';

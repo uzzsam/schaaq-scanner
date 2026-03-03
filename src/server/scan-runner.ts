@@ -2,7 +2,7 @@ import type { Repository } from './db/repository';
 import type { DatabaseAdapter, SchemaData } from '../adapters/types';
 import type { ScannerConfig, Finding } from '../checks/types';
 import type { PipelineMapping } from '../types/pipeline';
-import { ALL_CHECKS } from '../checks/index';
+import { ALL_CHECKS, computeStrengths } from '../checks/index';
 import { checkMappingDrift } from '../checks/p1-mapping-drift';
 import { checkLineageGaps } from '../checks/p4-lineage-gaps';
 import { scoreFindings } from '../scoring/severity-scorer';
@@ -150,11 +150,20 @@ export class ScanRunner extends EventEmitter {
       this.emitProgress(scanId, 0.80, 'Calculating', 'Running cost engine...');
       const result = calculateDALC(engineInput);
 
+      // --- Step 5b: Compute strengths ---
+      this.emitProgress(scanId, 0.85, 'Strengths', 'Detecting positive observations...');
+      const strengths = computeStrengths(schemaData, config, scored.findings);
+
       // --- Step 6: Persist results ---
       this.emitProgress(scanId, 0.90, 'Saving', 'Persisting findings and results...');
 
       // Store findings
       this.repo.insertFindings(scanId, scored.findings);
+
+      // Store strengths
+      if (strengths.length > 0) {
+        this.repo.insertStrengths(scanId, strengths);
+      }
 
       // Compute severity counts
       const severityCounts = { critical: 0, major: 0, minor: 0, info: 0 };

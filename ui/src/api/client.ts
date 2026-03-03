@@ -134,6 +134,18 @@ export interface DashboardStats {
   averageCost: number | null;
 }
 
+// Strength — positive observation
+export interface Strength {
+  id: number;
+  scan_id: string;
+  check_id: string;
+  property: number;
+  title: string;
+  description: string | null;
+  detail: string | null;
+  metric: string | null;
+}
+
 // Engine result types (parsed from engine_result_json)
 export interface CostVector {
   firefighting: number;
@@ -323,6 +335,10 @@ export async function uploadCsvFiles(
 
 export async function fetchEngineResult(scanId: string): Promise<EngineResult> {
   return request(`/scans/${scanId}/result`);
+}
+
+export async function fetchStrengths(scanId: string): Promise<Strength[]> {
+  return request(`/scans/${scanId}/strengths`);
 }
 
 export function getExportHtmlUrl(scanId: string): string {

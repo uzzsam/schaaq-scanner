@@ -2,8 +2,8 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   fetchScan, fetchFindings, fetchEngineResult, getExportHtmlUrl,
-  fetchTransformFindings, uploadTransformFiles,
-  type Scan, type Finding, type TransformFinding,
+  fetchTransformFindings, uploadTransformFiles, fetchStrengths,
+  type Scan, type Finding, type TransformFinding, type Strength,
 } from '../api/client';
 import { MetricCard, PageHeader, PrimaryButton, Card } from '../components/Shared';
 import { SeverityBadge } from '../components/SeverityBadge';
@@ -35,6 +35,9 @@ export function ScanResults() {
   const [view, setView] = useState<ViewMode>('overview');
   const [selectedFinding, setSelectedFinding] = useState<Finding | null>(null);
 
+  // Strengths state
+  const [strengths, setStrengths] = useState<Strength[]>([]);
+
   // Transform state
   const [transformFindings, setTransformFindings] = useState<TransformFinding[]>([]);
   const [transformUploading, setTransformUploading] = useState(false);
@@ -61,8 +64,9 @@ export function ScanResults() {
       fetchFindings(scanId),
       fetchEngineResult(scanId).catch(() => null),
       fetchTransformFindings(scanId).catch(() => []),
+      fetchStrengths(scanId).catch(() => []),
     ])
-      .then(([s, f, r, tf]) => { setScan(s); setFindings(f); setEngineResult(r); setTransformFindings(tf); })
+      .then(([s, f, r, tf, st]) => { setScan(s); setFindings(f); setEngineResult(r); setTransformFindings(tf); setStrengths(st); })
       .catch((err) => setError(err?.message ?? 'Failed to load scan results'))
       .finally(() => setLoading(false));
   }, [scanId]);
@@ -229,6 +233,49 @@ export function ScanResults() {
             <MetricCard label="Tables Affected" value={`${tablesAffected} / ${scan.schema_tables ?? '?'}`} color="#818CF8" sub={`${scan.schema_tables ? Math.round(tablesAffected / scan.schema_tables * 100) : '?'}% of scanned tables`} />
             <MetricCard label="Architecture Health" value={`${avgScore}/100`} color={scoreColor(avgScore)} sub="across 7 properties" />
           </div>
+
+          {/* What's Working Well */}
+          {strengths.length > 0 && (
+            <Card style={{ marginBottom: 20, overflow: 'hidden' }}>
+              <div style={{
+                padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)',
+                display: 'flex', alignItems: 'center', gap: 8,
+              }}>
+                <span style={{ fontSize: 14 }}>✓</span>
+                <span className="label-text" style={{ color: '#10B981' }}>What's Working Well</span>
+                <span style={{ color: '#6B7280', fontSize: 11, marginLeft: 'auto' }}>
+                  {strengths.length} positive observation{strengths.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 0 }}>
+                {strengths.map((s) => (
+                  <div key={s.id} style={{
+                    padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)',
+                    borderRight: '1px solid rgba(255,255,255,0.04)',
+                    display: 'flex', alignItems: 'flex-start', gap: 10,
+                  }}>
+                    <span style={{
+                      fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700,
+                      color: '#10B981', background: 'rgba(16,185,129,0.1)',
+                      padding: '2px 5px', borderRadius: 3, flexShrink: 0, marginTop: 1,
+                    }}>P{s.property}</span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ color: '#E5E7EB', fontSize: 13, fontWeight: 600, marginBottom: 2 }}>{s.title}</div>
+                      <div style={{ color: '#9CA3AF', fontSize: 11, lineHeight: 1.4 }}>{s.detail ?? s.description}</div>
+                      {s.metric && (
+                        <span style={{
+                          display: 'inline-block', marginTop: 4,
+                          fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 600,
+                          color: '#10B981', background: 'rgba(16,185,129,0.08)',
+                          padding: '1px 6px', borderRadius: 3,
+                        }}>{s.metric}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
 
           {/* Middle Row */}
           <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr 1fr', gap: 12, marginBottom: 20 }}>

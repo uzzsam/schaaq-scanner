@@ -77,6 +77,18 @@ export interface ScannerConfig {
 }
 
 // =============================================================================
+// Strength — a positive observation detected by the scanner
+// =============================================================================
+export interface Strength {
+  checkId: string;
+  property: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+  title: string;
+  description: string;
+  detail: string;
+  metric?: string;
+}
+
+// =============================================================================
 // ScannerCheck — pure function interface
 // =============================================================================
 export interface ScannerCheck {

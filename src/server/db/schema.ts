@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { join } from 'path';
 
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 const SCHEMA_SQL = `
   -- Projects represent client organisations
@@ -146,6 +146,18 @@ const SCHEMA_SQL = `
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  -- Scan strengths (positive observations)
+  CREATE TABLE IF NOT EXISTS scan_strengths (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    scan_id TEXT NOT NULL REFERENCES scans(id) ON DELETE CASCADE,
+    check_id TEXT NOT NULL,
+    property INTEGER NOT NULL CHECK (property BETWEEN 1 AND 7),
+    title TEXT NOT NULL,
+    description TEXT,
+    detail TEXT,
+    metric TEXT
+  );
+
   -- Indexes
   CREATE INDEX IF NOT EXISTS idx_scans_project ON scans(project_id);
   CREATE INDEX IF NOT EXISTS idx_scans_status ON scans(status);
@@ -156,6 +168,8 @@ const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_transform_findings_category ON transform_findings(category);
   CREATE INDEX IF NOT EXISTS idx_transform_findings_severity ON transform_findings(severity);
   CREATE INDEX IF NOT EXISTS idx_pipeline_mappings_scan ON pipeline_mappings(scan_id);
+  CREATE INDEX IF NOT EXISTS idx_strengths_scan ON scan_strengths(scan_id);
+  CREATE INDEX IF NOT EXISTS idx_strengths_property ON scan_strengths(property);
 
   -- Schema version tracking
   CREATE TABLE IF NOT EXISTS schema_version (
@@ -250,6 +264,28 @@ export function initDatabase(dataDir: string): Database.Database {
         `);
       }
       db.prepare('INSERT OR REPLACE INTO schema_version (version) VALUES (?)').run(4);
+    }
+
+    if (currentVersion < 5) {
+      // v5: add scan_strengths table
+      const stTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='scan_strengths'").get();
+      if (!stTable) {
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS scan_strengths (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scan_id TEXT NOT NULL REFERENCES scans(id) ON DELETE CASCADE,
+            check_id TEXT NOT NULL,
+            property INTEGER NOT NULL CHECK (property BETWEEN 1 AND 7),
+            title TEXT NOT NULL,
+            description TEXT,
+            detail TEXT,
+            metric TEXT
+          );
+          CREATE INDEX IF NOT EXISTS idx_strengths_scan ON scan_strengths(scan_id);
+          CREATE INDEX IF NOT EXISTS idx_strengths_property ON scan_strengths(property);
+        `);
+      }
+      db.prepare('INSERT OR REPLACE INTO schema_version (version) VALUES (?)').run(5);
     }
   }
 

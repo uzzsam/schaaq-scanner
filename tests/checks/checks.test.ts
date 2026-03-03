@@ -751,3 +751,120 @@ describe('ALL_CHECKS array', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 });
+
+// =============================================================================
+// Strengths — positive observations
+// =============================================================================
+describe('computeStrengths', () => {
+  it('returns strengths for a clean schema with no findings', async () => {
+    const { computeStrengths } = await import('../../src/checks/strengths');
+    const schema = makeSchemaData({
+      tables: [makeTable('public', 'users'), makeTable('public', 'orders')],
+      columns: [
+        makeColumn('public', 'users', 'id'),
+        makeColumn('public', 'orders', 'id'),
+      ],
+    });
+    const strengths = computeStrengths(schema, cfg, []);
+    expect(strengths.length).toBeGreaterThan(0);
+    // Should have at least one strength per property with relevant checks
+    const properties = new Set(strengths.map((s) => s.property));
+    expect(properties.size).toBeGreaterThanOrEqual(4);
+  });
+
+  it('returns no strengths for checks that found issues', async () => {
+    const { computeStrengths } = await import('../../src/checks/strengths');
+    const schema = makeSchemaData({
+      tables: [makeTable('public', 'users')],
+      columns: [makeColumn('public', 'users', 'id')],
+    });
+    // Simulate p5-naming-violations finding
+    const findings = [{
+      checkId: 'p5-naming-violations',
+      property: 5 as const,
+      severity: 'major' as const,
+      rawScore: 0.7,
+      title: 'Naming violations',
+      description: 'Some columns violate naming convention',
+      evidence: [],
+      affectedObjects: 10,
+      totalObjects: 20,
+      ratio: 0.5,
+      remediation: 'Fix naming',
+      costCategories: [] as any,
+      costWeights: {} as any,
+    }];
+    const strengths = computeStrengths(schema, cfg, findings);
+    // Should NOT have p5-naming-violations strength (ratio too high for mostlyClean)
+    const namingStrengths = strengths.filter((s) => s.checkId === 'p5-naming-violations');
+    expect(namingStrengths).toHaveLength(0);
+  });
+
+  it('returns "mostly" strength for partial passes (low ratio)', async () => {
+    const { computeStrengths } = await import('../../src/checks/strengths');
+    const schema = makeSchemaData({
+      tables: [makeTable('public', 'users'), makeTable('public', 'orders')],
+      columns: [
+        makeColumn('public', 'users', 'id'),
+        makeColumn('public', 'orders', 'id'),
+      ],
+    });
+    // Low-ratio finding — mostly clean
+    const findings = [{
+      checkId: 'p5-naming-violations',
+      property: 5 as const,
+      severity: 'minor' as const,
+      rawScore: 0.3,
+      title: 'Minor naming issue',
+      description: 'A few columns violate',
+      evidence: [],
+      affectedObjects: 2,
+      totalObjects: 100,
+      ratio: 0.02,
+      remediation: 'Fix names',
+      costCategories: [] as any,
+      costWeights: {} as any,
+    }];
+    const strengths = computeStrengths(schema, cfg, findings);
+    const naming = strengths.filter((s) => s.checkId === 'p5-naming-violations');
+    expect(naming).toHaveLength(1);
+    expect(naming[0].title).toContain('Mostly');
+    expect(naming[0].metric).toBeDefined();
+  });
+
+  it('skips CSV-irrelevant strengths for CSV sources', async () => {
+    const { computeStrengths } = await import('../../src/checks/strengths');
+    const schema = makeSchemaData({
+      databaseType: 'csv',
+      tables: [makeTable('csv', 'data')],
+      columns: [makeColumn('csv', 'data', 'id')],
+    });
+    const strengths = computeStrengths(schema, cfg, []);
+    // Should NOT have p6-no-indexes, p7-no-constraints, p7-missing-audit, p4-csv-import-pattern strengths
+    const csvIrrelevant = strengths.filter((s) =>
+      s.checkId === 'p6-no-indexes' ||
+      s.checkId === 'p7-no-constraints' ||
+      s.checkId === 'p7-missing-audit' ||
+      s.checkId === 'p4-csv-import-pattern' ||
+      s.checkId === 'p5-undocumented'
+    );
+    expect(csvIrrelevant).toHaveLength(0);
+  });
+
+  it('all strengths have required fields', async () => {
+    const { computeStrengths } = await import('../../src/checks/strengths');
+    const schema = makeSchemaData({
+      tables: [makeTable('public', 'users')],
+      columns: [makeColumn('public', 'users', 'id')],
+    });
+    const strengths = computeStrengths(schema, cfg, []);
+    for (const s of strengths) {
+      expect(s.checkId).toBeTruthy();
+      expect(s.property).toBeGreaterThanOrEqual(1);
+      expect(s.property).toBeLessThanOrEqual(7);
+      expect(s.title).toBeTruthy();
+      expect(s.description).toBeTruthy();
+      expect(s.detail).toBeTruthy();
+    }
+  });
+});

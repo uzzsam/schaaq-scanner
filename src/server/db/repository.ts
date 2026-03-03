@@ -468,6 +468,36 @@ export class Repository {
   }
 
   // =========================================================================
+  // STRENGTHS (positive observations)
+  // =========================================================================
+
+  insertStrengths(scanId: string, strengths: any[]): void {
+    const stmt = this.db.prepare(`
+      INSERT INTO scan_strengths (
+        scan_id, check_id, property, title, description, detail, metric
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const insertMany = this.db.transaction((rows: any[]) => {
+      for (const s of rows) {
+        stmt.run(
+          scanId, s.checkId, s.property,
+          s.title, s.description ?? null,
+          s.detail ?? null, s.metric ?? null,
+        );
+      }
+    });
+
+    insertMany(strengths);
+  }
+
+  getStrengths(scanId: string): any[] {
+    return this.db.prepare(
+      'SELECT * FROM scan_strengths WHERE scan_id = ? ORDER BY property, id'
+    ).all(scanId) as any[];
+  }
+
+  // =========================================================================
   // PIPELINE MAPPINGS
   // =========================================================================
 
