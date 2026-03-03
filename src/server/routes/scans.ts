@@ -561,6 +561,137 @@ export function scanRoutes(
     }
   });
 
+  // Export scan as PDF report (server-side, for browser mode)
+  router.get('/:id/export/pdf', async (req, res) => {
+    try {
+      const scan = repo.getScan(req.params.id);
+      if (!scan) {
+        res.status(404).json({ error: 'Scan not found' });
+        return;
+      }
+      if (scan.status !== 'completed') {
+        res.status(400).json({ error: 'Scan not completed' });
+        return;
+      }
+
+      const engineResult = safeJsonParse<any>(scan.engine_result_json!, null, 'scans.engine_result_json');
+      const configSnapshot = safeJsonParse<any>(scan.config_snapshot, null, 'scans.config_snapshot');
+      if (!engineResult || !configSnapshot) {
+        res.status(500).json({ error: 'Scan result data is corrupted' });
+        return;
+      }
+
+      // Reconstruct findings (same as HTML export)
+      const findings = repo.getFindings(scan.id);
+      const scoredFindings = {
+        findings: findings.map((f: any) => ({
+          checkId: f.check_id,
+          property: f.property,
+          severity: f.severity,
+          rawScore: f.raw_score,
+          title: f.title,
+          description: f.description ?? '',
+          evidence: f.evidence ?? [],
+          affectedObjects: f.affected_objects ?? 0,
+          totalObjects: f.total_objects ?? 0,
+          ratio: f.ratio ?? 0,
+          remediation: f.remediation ?? '',
+          costCategories: f.costCategories ?? [],
+          costWeights: f.costWeights ?? {},
+        })),
+        propertyScores: new Map<number, number>(),
+        totalTables: scan.schema_tables ?? 0,
+        totalRowCount: 0,
+        zeroRowDowngrade: false,
+        complexityFloorApplied: false,
+      };
+
+      // Fetch strengths
+      const rawStrengths = repo.getStrengths(scan.id);
+      const strengths = rawStrengths.map((s: any) => ({
+        checkId: s.check_id,
+        property: s.property,
+        title: s.title,
+        description: s.description ?? '',
+        detail: s.detail ?? '',
+        metric: s.metric ?? undefined,
+      }));
+
+      const reportData = buildReportData(
+        engineResult,
+        scoredFindings,
+        configSnapshot.organisation?.name ?? 'Unknown',
+        scan.source,
+        {
+          strengths,
+          databaseLabel: scan.db_version || undefined,
+        },
+      );
+      const html = generateReport(reportData);
+
+      // Try to use puppeteer-core with a system Chrome
+      try {
+        const { default: puppeteer } = await import('puppeteer-core');
+
+        // Try common Chrome/Chromium paths
+        const chromePaths = [
+          // Windows
+          'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+          'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+          process.env['CHROME_PATH'],
+          // macOS
+          '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+          // Linux
+          '/usr/bin/google-chrome',
+          '/usr/bin/chromium-browser',
+          '/usr/bin/chromium',
+        ].filter(Boolean) as string[];
+
+        let executablePath: string | undefined;
+        const { existsSync: fsExists } = await import('node:fs');
+        for (const p of chromePaths) {
+          if (fsExists(p)) { executablePath = p; break; }
+        }
+
+        if (!executablePath) {
+          res.status(501).json({
+            error: 'PDF generation requires Chrome or the Schaaq Desktop app.',
+            hint: 'Install Chrome or use the desktop app for PDF export.',
+          });
+          return;
+        }
+
+        const browser = await puppeteer.launch({
+          executablePath,
+          headless: true,
+          args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        });
+
+        const page = await browser.newPage();
+        await page.setContent(html, { waitUntil: 'networkidle0' });
+        const pdfBuffer = await page.pdf({
+          format: 'A4',
+          printBackground: true,
+          margin: { top: '0.4in', bottom: '0.4in', left: '0.4in', right: '0.4in' },
+        });
+        await browser.close();
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition',
+          `attachment; filename="schaaq-report-${scan.id.slice(0, 8)}.pdf"`);
+        res.send(Buffer.from(pdfBuffer));
+      } catch (_puppeteerErr) {
+        // puppeteer-core not available or Chrome not found
+        res.status(501).json({
+          error: 'PDF generation not available in browser mode.',
+          hint: 'Use the Schaaq Desktop app for PDF export, or download the HTML report and print to PDF.',
+        });
+      }
+    } catch (err: any) {
+      res.status(500).json({ error: safeError(err, 'GET /api/scans/:id/export/pdf') });
+    }
+  });
+
   return router;
 }
 

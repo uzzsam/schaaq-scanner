@@ -11,4 +11,12 @@ contextBridge.exposeInMainWorld('schaaq', {
 
   // Navigation (used by menu shortcuts from renderer)
   navigate: (path: string) => ipcRenderer.send('app:navigate', path),
+
+  // PDF generation via Electron's built-in Chromium
+  generatePdf: (scanId: string) =>
+    ipcRenderer.invoke('schaaq:generate-pdf', scanId) as Promise<{
+      success: boolean;
+      filePath?: string;
+      reason?: string;
+    }>,
 });

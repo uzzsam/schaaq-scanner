@@ -21,6 +21,13 @@ export interface SchaaqBridge {
 
   /** Navigate the main window to a local path (e.g. '/projects/new'). */
   navigate: (path: string) => void;
+
+  /** Generate a PDF report via Electron's built-in Chromium (printToPDF). */
+  generatePdf: (scanId: string) => Promise<{
+    success: boolean;
+    filePath?: string;
+    reason?: string;
+  }>;
 }
 
 declare global {

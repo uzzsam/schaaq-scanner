@@ -345,6 +345,10 @@ export function getExportHtmlUrl(scanId: string): string {
   return `${BASE}/scans/${scanId}/export/html`;
 }
 
+export function getExportPdfUrl(scanId: string): string {
+  return `${BASE}/scans/${scanId}/export/pdf`;
+}
+
 // ---------------------------------------------------------------------------
 // Transform Findings
 // ---------------------------------------------------------------------------

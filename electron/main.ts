@@ -17,8 +17,9 @@ register('./esm-resolve-hook.js', import.meta.url);
 
 import { app, BrowserWindow, shell, Tray, Menu, nativeImage, dialog, ipcMain } from 'electron';
 import path from 'node:path';
+import os from 'node:os';
 import { pathToFileURL } from 'node:url';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import type { Server } from 'node:http';
 import log from 'electron-log';
 import electronUpdater from 'electron-updater';
@@ -489,6 +490,78 @@ ipcMain.handle('updater:checkForUpdates', () => {
 
 ipcMain.on('app:navigate', (_event, navPath: string) => {
   mainWindow?.loadURL(`http://localhost:${PORT}${navPath}`);
+});
+
+// ---------------------------------------------------------------------------
+// PDF generation via Electron's built-in Chromium
+// ---------------------------------------------------------------------------
+
+ipcMain.handle('schaaq:generate-pdf', async (_event, scanId: string) => {
+  log.info(`[pdf] Generating PDF for scan ${scanId.slice(0, 8)}…`);
+
+  // 1. Fetch the HTML report from the local Express server
+  const response = await fetch(`http://localhost:${PORT}/api/scans/${scanId}/export/html`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch HTML report: ${response.statusText}`);
+  }
+  const html = await response.text();
+
+  // 2. Create a hidden window to render the HTML
+  const pdfWindow = new BrowserWindow({
+    show: false,
+    width: 1200,
+    height: 800,
+    webPreferences: {
+      offscreen: true,
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+
+  try {
+    // 3. Load the HTML content via data URI
+    await pdfWindow.loadURL(
+      `data:text/html;charset=utf-8,${encodeURIComponent(html)}`,
+    );
+
+    // 4. Wait for CSS/SVG to finish rendering
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
+    // 5. Generate PDF with A4 settings
+    const pdfBuffer = await pdfWindow.webContents.printToPDF({
+      pageSize: 'A4',
+      printBackground: true,
+      margins: {
+        marginType: 'custom',
+        top: 0.4,
+        bottom: 0.4,
+        left: 0.4,
+        right: 0.4,
+      },
+    });
+
+    // 6. Show save dialog
+    const { canceled, filePath } = await dialog.showSaveDialog({
+      title: 'Save PDF Report',
+      defaultPath: path.join(
+        os.homedir(),
+        'Desktop',
+        `schaaq-report-${scanId.slice(0, 8)}.pdf`,
+      ),
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    });
+
+    if (canceled || !filePath) {
+      log.info('[pdf] Save cancelled by user');
+      return { success: false, reason: 'cancelled' };
+    }
+
+    writeFileSync(filePath, pdfBuffer);
+    log.info(`[pdf] PDF saved to ${filePath}`);
+    return { success: true, filePath };
+  } finally {
+    pdfWindow.close();
+  }
 });
 
 // ---------------------------------------------------------------------------

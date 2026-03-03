@@ -648,28 +648,45 @@ h3 { font-size: 16px; font-weight: 600; color: var(--c-primary); margin-bottom: 
    Print styles
    ===================================================================== */
 @media print {
-  body { font-size: 11px; }
+  /* Page setup */
+  @page { size: A4; margin: 15mm; }
+
+  body { font-size: 11px; color: #1F2937; background: white; }
   .container { max-width: 100%; padding: 0; }
+
+  /* Each major section avoids mid-section breaks */
+  section { padding: 16px 0; break-inside: avoid; page-break-inside: avoid; }
+
+  /* Force page break before key sections */
+  .section-page-break { break-before: page; page-break-before: always; }
+
+  /* Ensure backgrounds print */
+  * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+
+  /* Header compact for print */
   .header { padding: 20px 0 16px; }
-  section { padding: 16px 0; break-inside: avoid; }
+  .header-logo { max-height: 36px; }
+
+  /* Metrics grid */
   .metrics { grid-template-columns: repeat(4, 1fr); }
-  .metric-card { padding: 12px; }
-  .metric-card .value { font-size: 20px; }
-  .findings-table { font-size: 11px; }
-  .findings-table th { padding: 6px 8px; }
-  .findings-table td { padding: 6px 8px; }
+  .metric-card { padding: 10px; }
+  .metric-card .value { font-size: 18px; }
+
+  /* Strengths grid: force 2 columns */
   .strengths-grid { grid-template-columns: repeat(2, 1fr); }
   .strength-card { padding: 10px 12px; }
+
+  /* Radar chart */
   .radar-layout { gap: 20px; }
-  .bar-track { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-  .bar-fill { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-  .badge { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-  .score-indicator { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-  .header { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-  .findings-table th { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-  .strength-card { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-  .strength-icon { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-  .strength-metric { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .radar-chart-wrap svg { max-width: 280px; }
+
+  /* Findings table */
+  .findings-table { font-size: 10px; }
+  .findings-table th, .findings-table td { padding: 5px 6px; }
+  .remediation { font-size: 9px; }
+
+  /* Bar chart */
+  .bar-track { height: 20px; }
 }
 </style>
 </head>
@@ -772,7 +789,7 @@ h3 { font-size: 16px; font-weight: 600; color: var(--c-primary); margin-bottom: 
 {{/if}}
 
 <!-- Cost Breakdown -->
-<section>
+<section class="section-page-break">
   <h2>Cost Breakdown by Category</h2>
   <div class="bar-chart">
     {{#each costCategories}}
@@ -790,7 +807,7 @@ h3 { font-size: 16px; font-weight: 600; color: var(--c-primary); margin-bottom: 
 </section>
 
 <!-- Property Maturity Assessment -->
-<section>
+<section class="section-page-break">
   <h2>Property Maturity Assessment</h2>
   <div class="radar-layout">
     <div class="radar-chart-wrap">
@@ -815,7 +832,7 @@ h3 { font-size: 16px; font-weight: 600; color: var(--c-primary); margin-bottom: 
 </section>
 
 <!-- Five-Year Projection -->
-<section>
+<section class="section-page-break">
   <h2>Five-Year Cost Projection</h2>
   <div class="legend">
     <div class="legend-item"><div class="legend-dot" style="background:var(--c-accent)"></div>Do Nothing</div>
@@ -845,7 +862,7 @@ h3 { font-size: 16px; font-weight: 600; color: var(--c-primary); margin-bottom: 
 </section>
 
 <!-- Scanner Findings Detail -->
-<section>
+<section class="section-page-break">
   <h2>Scanner Findings Detail</h2>
   <table class="findings-table">
     <thead>

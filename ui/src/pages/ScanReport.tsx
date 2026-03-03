@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { fetchScan, fetchFindings, getExportHtmlUrl, type Scan, type Finding } from '../api/client';
+import { fetchScan, fetchFindings, getExportHtmlUrl, getExportPdfUrl, type Scan, type Finding } from '../api/client';
 import { PageHeader, Card, PrimaryButton, SecondaryButton } from '../components/Shared';
 import { PROPERTY_NAMES, SEVERITY_CONFIG, type SeverityKey } from '../utils';
 import { ScanDetailSkeleton } from '../components/LoadingSkeleton';
@@ -12,6 +12,8 @@ export function ScanReport() {
   const [findings, setFindings] = useState<Finding[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pdfGenerating, setPdfGenerating] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     if (!scanId) return;
@@ -54,6 +56,42 @@ export function ScanReport() {
     URL.revokeObjectURL(url);
   };
 
+  const downloadPdf = async () => {
+    if (!scanId) return;
+    setPdfGenerating(true);
+    setPdfError(null);
+
+    try {
+      if (window.schaaq?.generatePdf) {
+        // Electron mode: use built-in Chromium via IPC
+        const result = await window.schaaq.generatePdf(scanId);
+        if (!result.success && result.reason !== 'cancelled') {
+          setPdfError(result.reason ?? 'PDF generation failed');
+        }
+      } else {
+        // Browser mode: use server-side puppeteer-core route
+        const response = await fetch(getExportPdfUrl(scanId));
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          throw new Error(body.error ?? body.hint ?? `HTTP ${response.status}`);
+        }
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `schaaq-report-${scanId.slice(0, 8)}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch (err: any) {
+      setPdfError(err?.message ?? 'PDF generation failed');
+    } finally {
+      setPdfGenerating(false);
+    }
+  };
+
+  const pdfAvailable = !!window.schaaq?.generatePdf || true; // always available (browser falls back to server route)
+
   const formats = [
     {
       key: 'html',
@@ -69,7 +107,7 @@ export function ScanReport() {
       iconColor: '#818CF8',
       title: 'PDF Report',
       description: 'Executive summary for board presentations.',
-      available: false,
+      available: pdfAvailable,
     },
     {
       key: 'csv',
@@ -156,7 +194,25 @@ export function ScanReport() {
                   Download CSV
                 </PrimaryButton>
               )}
-              {fmt.key === 'pdf' && (
+              {fmt.key === 'pdf' && fmt.available && (
+                <div style={{ position: 'relative' }}>
+                  <PrimaryButton
+                    onClick={pdfGenerating ? undefined : downloadPdf}
+                    style={{ width: '100%', opacity: pdfGenerating ? 0.6 : 1, cursor: pdfGenerating ? 'wait' : 'pointer' }}
+                  >
+                    {pdfGenerating ? 'Generating PDF…' : 'Download PDF'}
+                  </PrimaryButton>
+                  {pdfError && (
+                    <div style={{
+                      marginTop: 6, fontSize: 11, color: '#EF4444',
+                      lineHeight: 1.4,
+                    }}>
+                      {pdfError}
+                    </div>
+                  )}
+                </div>
+              )}
+              {fmt.key === 'pdf' && !fmt.available && (
                 <div style={{ position: 'relative' }}>
                   <SecondaryButton style={{ width: '100%', opacity: 0.5, cursor: 'not-allowed' }}>
                     Download PDF
