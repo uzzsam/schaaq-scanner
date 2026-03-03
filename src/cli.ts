@@ -19,7 +19,7 @@ const __dirname = dirname(__filename);
 
 import { parseConfig } from './config';
 import type { CLIConfig } from './config';
-import { ALL_CHECKS } from './checks/index';
+import { ALL_CHECKS, computeStrengths } from './checks/index';
 import { scoreFindings } from './scoring/severity-scorer';
 import { mapToEngineInput } from './scoring/mapper';
 import { calculateDALC } from './engine/index';
@@ -316,7 +316,11 @@ async function run(opts: CLIOptions): Promise<void> {
     log(opts, `   JSON report written to ${jsonPath}`);
   } else {
     // HTML output
-    const reportData = buildReportData(result, scored, orgName);
+    const strengths = computeStrengths(schemaData, scannerConfig, scored.findings);
+    const reportData = buildReportData(result, scored, orgName, undefined, {
+      strengths,
+      databaseLabel: schemaData.databaseVersion || undefined,
+    });
     const html = generateReport(reportData);
 
     const htmlPath = join(resolvedOutputDir, `${outputFilename}.html`);

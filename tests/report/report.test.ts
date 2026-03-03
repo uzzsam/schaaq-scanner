@@ -161,8 +161,9 @@ describe('Report Generator', () => {
       const data = buildReportData(result, scored, 'Test Corp');
       const html = generateReport(data);
 
-      // No http(s) URLs in the HTML (except potential data: URIs)
-      const urls = html.match(/https?:\/\/[^\s"'<>]+/g) ?? [];
+      // No http(s) URLs in the HTML (except XML namespace URIs and data: URIs)
+      const urls = (html.match(/https?:\/\/[^\s"'<>]+/g) ?? [])
+        .filter((u: string) => !u.startsWith('http://www.w3.org/'));
       expect(urls).toHaveLength(0);
     });
 

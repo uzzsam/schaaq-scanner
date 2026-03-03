@@ -530,11 +530,26 @@ export function scanRoutes(
         complexityFloorApplied: false,
       };
 
+      // Fetch strengths for the report
+      const rawStrengths = repo.getStrengths(scan.id);
+      const strengths = rawStrengths.map((s: any) => ({
+        checkId: s.check_id,
+        property: s.property,
+        title: s.title,
+        description: s.description ?? '',
+        detail: s.detail ?? '',
+        metric: s.metric ?? undefined,
+      }));
+
       const reportData = buildReportData(
         engineResult,
         scoredFindings,
         configSnapshot.organisation?.name ?? 'Unknown',
         scan.source,
+        {
+          strengths,
+          databaseLabel: scan.db_version || undefined,
+        },
       );
       const html = generateReport(reportData);
 

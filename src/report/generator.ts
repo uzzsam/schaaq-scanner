@@ -3,15 +3,17 @@
  *
  * Produces a self-contained, McKinsey-quality HTML report from DALC engine results.
  * - Pure CSS bar charts (no JavaScript, no chart libraries)
+ * - SVG radar chart for property maturity (no JavaScript, no external libraries)
  * - No external URLs (air-gap safe)
  * - Print-friendly with @media print rules
  * - Professional C-suite presentable design
  * - Handlebars templating
+ * - White-label support for consultant branding
  */
 
 import Handlebars from 'handlebars';
 import type { DALCResult, CostVector, PropertyScore, YearProjection, FindingCostResult } from '../engine/types';
-import type { Finding } from '../checks/types';
+import type { Finding, Strength } from '../checks/types';
 import type { ScoredFindings } from '../scoring/severity-scorer';
 
 // =============================================================================
@@ -77,6 +79,27 @@ export interface ReportData {
     costCategories: string[];
   }>;
 
+  // Strengths (What's Working Well)
+  strengths: Array<{
+    property: number;
+    title: string;
+    description: string;
+    detail: string;
+    metric?: string;
+  }>;
+
+  // White-label / branding
+  consultantName?: string;
+  consultantTagline?: string;
+  clientName?: string;
+  clientLogoBase64?: string;
+  consultantLogoBase64?: string;
+  reportTitle?: string;
+  reportSubtitle?: string;
+
+  // Database context
+  databaseLabel?: string;
+
   // Scanner stats
   isCsvSource: boolean;
   sourceLabel: string;
@@ -119,6 +142,17 @@ export function buildReportData(
   scored: ScoredFindings,
   organisationName: string,
   source?: string,
+  options?: {
+    strengths?: Strength[];
+    consultantName?: string;
+    consultantTagline?: string;
+    clientName?: string;
+    clientLogoBase64?: string;
+    consultantLogoBase64?: string;
+    reportTitle?: string;
+    reportSubtitle?: string;
+    databaseLabel?: string;
+  },
 ): ReportData {
   const costTotal = sumCostVector(result.finalCosts);
 
@@ -179,6 +213,15 @@ export function buildReportData(
   const minorCount = scored.findings.filter((f) => f.severity === 'minor').length;
   const infoCount = scored.findings.filter((f) => f.severity === 'info').length;
 
+  // Map strengths
+  const strengths = (options?.strengths ?? []).map((s) => ({
+    property: s.property,
+    title: s.title,
+    description: s.description,
+    detail: s.detail,
+    metric: s.metric,
+  }));
+
   return {
     organisationName,
     sector: result.input.sector,
@@ -200,6 +243,19 @@ export function buildReportData(
     propertyScores,
     fiveYearProjection,
     findings,
+    strengths,
+
+    // White-label / branding
+    consultantName: options?.consultantName,
+    consultantTagline: options?.consultantTagline,
+    clientName: options?.clientName,
+    clientLogoBase64: options?.clientLogoBase64,
+    consultantLogoBase64: options?.consultantLogoBase64,
+    reportTitle: options?.reportTitle,
+    reportSubtitle: options?.reportSubtitle,
+
+    // Database context
+    databaseLabel: options?.databaseLabel,
 
     isCsvSource: source === 'csv' || source === 'powerbi' || source === 'tableau' || source === 'pipeline',
     source: source ?? 'database',
@@ -257,6 +313,94 @@ function registerHelpers(): void {
     return new Handlebars.SafeString(
       `<span class="badge" style="background:${escapedColor}">${escapedSeverity.toUpperCase()}</span>`
     );
+  });
+
+  // Radar chart SVG helper
+  Handlebars.registerHelper('radarChart', (propertyScores: ReportData['propertyScores']) => {
+    if (!propertyScores || propertyScores.length === 0) return '';
+
+    const cx = 200, cy = 200, maxR = 150;
+    const n = propertyScores.length;
+    const viewBox = '0 0 460 430';
+
+    // Helper to get point at angle and radius
+    const point = (i: number, r: number) => {
+      const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
+      return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
+    };
+
+    // Points to polygon string
+    const polyPoints = (pts: { x: number; y: number }[]) =>
+      pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+
+    // Grid rings (levels 1-4)
+    const gridRings = [1, 2, 3, 4].map((level) => {
+      const r = (level / 4) * maxR;
+      const pts = Array.from({ length: n }, (_, i) => point(i, r));
+      return `<polygon points="${polyPoints(pts)}" fill="none" stroke="#E5E7EB" stroke-width="${level === 4 ? 1.5 : 0.75}" />`;
+    });
+
+    // Axis lines from center to each vertex
+    const axisLines = Array.from({ length: n }, (_, i) => {
+      const p = point(i, maxR);
+      return `<line x1="${cx}" y1="${cy}" x2="${p.x.toFixed(1)}" y2="${p.y.toFixed(1)}" stroke="#F3F4F6" stroke-width="0.75" />`;
+    });
+
+    // Data polygon
+    const dataPoints = propertyScores.map((p, i) => point(i, (p.score / 4) * maxR));
+    const dataPolygon = `<polygon points="${polyPoints(dataPoints)}" fill="rgba(59,130,246,0.15)" stroke="#3B82F6" stroke-width="2" />`;
+
+    // Data point circles
+    const dataCircles = dataPoints.map(
+      (p) => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4" fill="#3B82F6" />`
+    );
+
+    // Labels at each axis tip
+    const labels = propertyScores.map((p, i) => {
+      const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
+      const labelR = maxR + 28;
+      const lx = cx + labelR * Math.cos(angle);
+      const ly = cy + labelR * Math.sin(angle);
+
+      // Determine text-anchor based on position
+      let anchor = 'middle';
+      if (Math.cos(angle) > 0.15) anchor = 'start';
+      else if (Math.cos(angle) < -0.15) anchor = 'end';
+
+      // Truncate long names
+      const words = p.name.split(' ');
+      const shortName = words.length > 2 ? words.slice(0, 2).join(' ') : p.name;
+
+      return `<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="central" font-size="11" fill="#4B5563" font-family="-apple-system,BlinkMacSystemFont,sans-serif">${Handlebars.Utils.escapeExpression(shortName)}</text>`;
+    });
+
+    // Score labels near each data point
+    const scoreLabels = propertyScores.map((p, i) => {
+      const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
+      const r = (p.score / 4) * maxR;
+      const offset = 14;
+      const sx = cx + (r + offset) * Math.cos(angle);
+      const sy = cy + (r + offset) * Math.sin(angle);
+
+      let anchor = 'middle';
+      if (Math.cos(angle) > 0.15) anchor = 'start';
+      else if (Math.cos(angle) < -0.15) anchor = 'end';
+
+      return `<text x="${sx.toFixed(1)}" y="${sy.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="central" font-size="9" fill="#6B7280" font-weight="600" font-family="-apple-system,BlinkMacSystemFont,sans-serif">${p.score.toFixed(1)}/4</text>`;
+    });
+
+    const svg = `<svg viewBox="${viewBox}" width="340" height="320" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">
+  <g transform="translate(30,15)">
+    ${gridRings.join('\n    ')}
+    ${axisLines.join('\n    ')}
+    ${dataPolygon}
+    ${dataCircles.join('\n    ')}
+    ${labels.join('\n    ')}
+    ${scoreLabels.join('\n    ')}
+  </g>
+</svg>`;
+
+    return new Handlebars.SafeString(svg);
   });
 }
 
@@ -319,6 +463,17 @@ body {
 .header h1 { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
 .header .subtitle { font-size: 15px; opacity: 0.85; }
 .header .meta { margin-top: 12px; font-size: 12px; opacity: 0.7; }
+.report-logos {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+.header-logo {
+  max-height: 48px;
+  max-width: 180px;
+  object-fit: contain;
+}
 
 /* Sections */
 section { padding: 32px 0; border-bottom: 1px solid var(--c-border); }
@@ -371,6 +526,66 @@ h3 { font-size: 16px; font-weight: 600; color: var(--c-primary); margin-bottom: 
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+/* Strengths */
+.strengths-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+.strength-card {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  background: rgba(16, 185, 129, 0.06);
+  border: 1px solid rgba(16, 185, 129, 0.15);
+  border-radius: 8px;
+}
+.strength-icon {
+  flex: 0 0 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(16, 185, 129, 0.15);
+  color: #10B981;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+}
+.strength-title {
+  font-weight: 600;
+  color: var(--c-text);
+  font-size: 13px;
+}
+.strength-detail {
+  color: var(--c-text-muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+.strength-metric {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(16, 185, 129, 0.1);
+  color: #10B981;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Radar chart layout */
+.radar-layout {
+  display: flex;
+  gap: 40px;
+  align-items: flex-start;
+}
+.radar-chart-wrap {
+  flex: 0 0 auto;
+}
+.radar-scores-wrap {
+  flex: 1;
 }
 
 /* Findings Table */
@@ -443,12 +658,18 @@ h3 { font-size: 16px; font-weight: 600; color: var(--c-primary); margin-bottom: 
   .findings-table { font-size: 11px; }
   .findings-table th { padding: 6px 8px; }
   .findings-table td { padding: 6px 8px; }
+  .strengths-grid { grid-template-columns: repeat(2, 1fr); }
+  .strength-card { padding: 10px 12px; }
+  .radar-layout { gap: 20px; }
   .bar-track { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .bar-fill { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .badge { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .score-indicator { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .header { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .findings-table th { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .strength-card { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .strength-icon { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .strength-metric { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 }
 </style>
 </head>
@@ -457,9 +678,21 @@ h3 { font-size: 16px; font-weight: 600; color: var(--c-primary); margin-bottom: 
 <!-- Header -->
 <div class="header">
   <div class="container">
-    <h1>Data Architecture Loss Calculator</h1>
-    <div class="subtitle">{{organisationName}} — {{uppercase sector}} Sector Assessment</div>
-    <div class="meta">Engine {{engineVersion}} &middot; Generated {{generatedAt}} &middot; {{totalTables}} tables analysed{{#if isCsvSource}} &middot; Source: {{sourceLabel}}{{/if}}</div>
+    {{#if consultantLogoBase64}}
+    <div class="report-logos">
+      <img src="data:image/png;base64,{{consultantLogoBase64}}" alt="{{consultantName}}" class="header-logo" />
+      {{#if clientLogoBase64}}
+      <img src="data:image/png;base64,{{clientLogoBase64}}" alt="{{clientName}}" class="header-logo" />
+      {{/if}}
+    </div>
+    {{/if}}
+    <h1>{{#if reportTitle}}{{reportTitle}}{{else}}Data Architecture Loss Calculator{{/if}}</h1>
+    <div class="subtitle">
+      {{#if reportSubtitle}}{{reportSubtitle}}{{else}}{{organisationName}} — {{uppercase sector}} Sector Assessment{{/if}}
+    </div>
+    <div class="meta">
+      Engine {{engineVersion}} &middot; Generated {{generatedAt}} &middot; {{totalTables}} tables analysed{{#if databaseLabel}} &middot; {{databaseLabel}}{{/if}}{{#if isCsvSource}} &middot; Source: {{sourceLabel}}{{/if}}
+    </div>
   </div>
 </div>
 
@@ -517,6 +750,27 @@ h3 { font-size: 16px; font-weight: 600; color: var(--c-primary); margin-bottom: 
   </div>
 </section>
 
+<!-- What's Working Well -->
+{{#if strengths.length}}
+<section class="strengths-section">
+  <h2>What's Working Well</h2>
+  <div class="strengths-grid">
+    {{#each strengths}}
+    <div class="strength-card">
+      <div class="strength-icon">&#10003;</div>
+      <div class="strength-content">
+        <div class="strength-title">{{title}}</div>
+        <div class="strength-detail">{{detail}}</div>
+        {{#if metric}}
+        <div class="strength-metric">{{metric}}</div>
+        {{/if}}
+      </div>
+    </div>
+    {{/each}}
+  </div>
+</section>
+{{/if}}
+
 <!-- Cost Breakdown -->
 <section>
   <h2>Cost Breakdown by Category</h2>
@@ -535,21 +789,28 @@ h3 { font-size: 16px; font-weight: 600; color: var(--c-primary); margin-bottom: 
   </div>
 </section>
 
-<!-- Property Scores -->
+<!-- Property Maturity Assessment -->
 <section>
-  <h2>Property Maturity Scores</h2>
-  <div class="bar-chart">
-    {{#each propertyScores}}
-    <div class="bar-row">
-      <div class="bar-label" title="{{propertyId}}">{{name}}</div>
-      <div class="bar-track">
-        <div class="bar-fill" style="width:{{barWidth}}%;background:{{barColor}}">
-          <span>{{fixed1 score}}/4 — {{maturityLabel}}</span>
-        </div>
-      </div>
-      <div class="bar-value">{{currency totalCost}}</div>
+  <h2>Property Maturity Assessment</h2>
+  <div class="radar-layout">
+    <div class="radar-chart-wrap">
+      {{{radarChart propertyScores}}}
     </div>
-    {{/each}}
+    <div class="radar-scores-wrap">
+      <div class="bar-chart">
+        {{#each propertyScores}}
+        <div class="bar-row">
+          <div class="bar-label" title="{{propertyId}}">{{name}}</div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width:{{barWidth}}%;background:{{barColor}}">
+              <span>{{fixed1 score}}/4 — {{maturityLabel}}</span>
+            </div>
+          </div>
+          <div class="bar-value">{{currency totalCost}}</div>
+        </div>
+        {{/each}}
+      </div>
+    </div>
   </div>
 </section>
 
@@ -619,7 +880,7 @@ h3 { font-size: 16px; font-weight: 600; color: var(--c-primary); margin-bottom: 
 <!-- Footer -->
 <div class="footer">
   <div class="container">
-    DALC Scanner &middot; {{engineVersion}} &middot; Report generated {{generatedAt}}<br>
+    {{#if consultantName}}{{consultantName}}{{#if consultantTagline}} — {{consultantTagline}}{{/if}} &middot; {{/if}}DALC Scanner &middot; {{engineVersion}} &middot; Report generated {{generatedAt}}<br>
     Confidential — prepared for {{organisationName}}
   </div>
 </div>
@@ -648,7 +909,8 @@ export function generateReportFromResult(
   scored: ScoredFindings,
   organisationName: string,
   source?: string,
+  options?: Parameters<typeof buildReportData>[4],
 ): string {
-  const data = buildReportData(result, scored, organisationName, source);
+  const data = buildReportData(result, scored, organisationName, source, options);
   return generateReport(data);
 }
