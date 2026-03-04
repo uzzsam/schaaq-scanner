@@ -37,6 +37,7 @@ describe('SQLite Database', () => {
       expect(names).toContain('scans');
       expect(names).toContain('scan_findings');
       expect(names).toContain('transform_findings');
+      expect(names).toContain('settings');
       expect(names).toContain('schema_version');
     });
 
@@ -52,13 +53,13 @@ describe('SQLite Database', () => {
 
     it('records schema version', () => {
       const row = db.prepare('SELECT MAX(version) as version FROM schema_version').get() as { version: number };
-      expect(row.version).toBe(4);
+      expect(row.version).toBe(6);
     });
 
     it('is idempotent (calling again does not error)', () => {
       const db2 = initDatabase(dataDir);
       const row = db2.prepare('SELECT MAX(version) as version FROM schema_version').get() as { version: number };
-      expect(row.version).toBe(4);
+      expect(row.version).toBe(6);
       db2.close();
     });
   });

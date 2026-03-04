@@ -32,8 +32,8 @@ export interface SchaaqBridge {
   /** Exit fullscreen mode. */
   exitFullscreen: () => void;
 
-  /** Listen for fullscreen state changes. Returns a cleanup function. */
-  onFullscreenChange: (callback: (isFullscreen: boolean) => void) => () => void;
+  /** Returns current fullscreen state. */
+  getIsFullscreen: () => Promise<boolean>;
 }
 
 declare global {

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Schaaq Scanner — Find the Hidden Cost of Bad Data</title>
+    <meta name="description" content="Schaaq Scanner connects to your database, runs 15 automated checks across 7 DAMA-aligned properties, and calculates the annual cost of data architecture disorder." />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Schaaq Scanner — Data Quality Diagnostics" />
+    <meta property="og:description" content="Connect to your database. Run 15 automated checks. Get a branded report with cost projections and remediation roadmap." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://scanner.schaaq.com" />
+    <meta property="og:image" content="https://scanner.schaaq.com/og-image.png" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Schaaq Scanner" />
+    <meta name="twitter:description" content="Find the hidden cost of bad data." />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS (CDN play mode) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwindcss.config = {
+        theme: {
+          extend: {
+            colors: {
+              schaaq: {
+                50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe',
+                300: '#93c5fd', 400: '#60a5fa', 500: '#3b82f6',
+                600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#0f172a',
+              },
+            },
+            fontFamily: {
+              display: ['"Instrument Sans"', 'system-ui', 'sans-serif'],
+              mono: ['"JetBrains Mono"', 'monospace'],
+            },
+          },
+        },
+      };
+    </script>
+
+    <style>
+      body {
+        background-color: #0A0F1A;
+        color: #E5E7EB;
+        font-family: 'Instrument Sans', system-ui, sans-serif;
+      }
+
+      /* Scroll-reveal animations */
+      .reveal-up {
+        opacity: 0;
+        transform: translateY(24px);
+        transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+                    transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .reveal-up.revealed {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      /* ── Markdown body styles ─────────────────────────── */
+      .markdown-body {
+        color: #d1d5db;            /* gray-300 */
+        line-height: 1.75;
+        font-size: 0.9375rem;      /* 15px */
+      }
+      .markdown-body h1,
+      .markdown-body h2,
+      .markdown-body h3,
+      .markdown-body h4 {
+        color: #fff;
+        font-family: 'Instrument Sans', system-ui, sans-serif;
+        font-weight: 700;
+        margin-top: 2em;
+        margin-bottom: 0.75em;
+      }
+      .markdown-body h1 { font-size: 1.75rem; }
+      .markdown-body h2 {
+        font-size: 1.35rem;
+        padding-bottom: 0.4em;
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+      }
+      .markdown-body h3 { font-size: 1.1rem; }
+      .markdown-body h4 { font-size: 1rem; color: #e5e7eb; }
+      .markdown-body p { margin-bottom: 1em; }
+      .markdown-body a {
+        color: #3b82f6;
+        text-decoration: none;
+      }
+      .markdown-body a:hover { text-decoration: underline; }
+      .markdown-body strong { color: #f3f4f6; font-weight: 600; }
+
+      /* Lists */
+      .markdown-body ul,
+      .markdown-body ol {
+        padding-left: 1.5em;
+        margin-bottom: 1em;
+      }
+      .markdown-body ul { list-style: disc; }
+      .markdown-body ol { list-style: decimal; }
+      .markdown-body li { margin-bottom: 0.35em; }
+      .markdown-body li > ul,
+      .markdown-body li > ol { margin-top: 0.35em; margin-bottom: 0; }
+
+      /* Code – inline */
+      .markdown-body code {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.85em;
+        background: rgba(255,255,255,0.06);
+        padding: 0.15em 0.4em;
+        border-radius: 0.3em;
+      }
+      /* Code – blocks */
+      .markdown-body pre {
+        background: #0D1117;
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 0.5rem;
+        padding: 1rem 1.25rem;
+        overflow-x: auto;
+        margin-bottom: 1.25em;
+      }
+      .markdown-body pre code {
+        background: none;
+        padding: 0;
+        font-size: 0.8125rem;
+        line-height: 1.65;
+        color: #d1d5db;
+      }
+
+      /* Blockquotes */
+      .markdown-body blockquote {
+        border-left: 3px solid rgba(59,130,246,0.4);
+        padding-left: 1em;
+        color: #9ca3af;
+        margin: 1.25em 0;
+      }
+
+      /* Tables */
+      .markdown-body table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 1.25em;
+        font-size: 0.875rem;
+      }
+      .markdown-body th,
+      .markdown-body td {
+        padding: 0.55em 0.75em;
+        border: 1px solid rgba(255,255,255,0.06);
+        text-align: left;
+      }
+      .markdown-body th {
+        background: rgba(255,255,255,0.03);
+        color: #f3f4f6;
+        font-weight: 600;
+      }
+      .markdown-body tr:nth-child(even) td {
+        background: rgba(255,255,255,0.015);
+      }
+
+      /* Horizontal rule */
+      .markdown-body hr {
+        border: none;
+        border-top: 1px solid rgba(255,255,255,0.06);
+        margin: 2em 0;
+      }
+
+      /* Images */
+      .markdown-body img {
+        max-width: 100%;
+        border-radius: 0.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

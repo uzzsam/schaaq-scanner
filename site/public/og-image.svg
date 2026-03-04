@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
+  <!-- Background -->
+  <rect width="1200" height="630" fill="#0A0F1A"/>
+
+  <!-- Subtle grid pattern -->
+  <defs>
+    <pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse">
+      <path d="M 60 0 L 0 0 0 60" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="630" fill="url(#grid)"/>
+
+  <!-- Radial glow -->
+  <circle cx="600" cy="280" r="300" fill="#3B82F6" opacity="0.06"/>
+  <circle cx="600" cy="280" r="180" fill="#3B82F6" opacity="0.04"/>
+
+  <!-- Logo mark -->
+  <rect x="538" y="140" width="56" height="56" rx="14" fill="#3B82F6"/>
+  <text x="566" y="178" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="700" font-size="32" fill="#fff">Q</text>
+
+  <!-- Brand name -->
+  <text x="610" y="176" text-anchor="start" font-family="system-ui, sans-serif" font-weight="600" font-size="28" fill="#fff">Schaaq Scanner</text>
+
+  <!-- Headline -->
+  <text x="600" y="310" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="700" font-size="52" fill="#fff">Find the hidden cost</text>
+  <text x="600" y="375" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="700" font-size="52" fill="#60A5FA">of bad data.</text>
+
+  <!-- Tagline -->
+  <text x="600" y="440" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="400" font-size="22" fill="#9CA3AF">15 automated checks · 7 DAMA-aligned properties · Branded PDF reports</text>
+
+  <!-- URL -->
+  <text x="600" y="560" text-anchor="middle" font-family="monospace" font-weight="500" font-size="18" fill="#6B7280">scanner.schaaq.com</text>
+</svg>

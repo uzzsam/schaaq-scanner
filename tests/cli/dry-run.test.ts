@@ -58,7 +58,7 @@ describe('CLI Dry-Run', () => {
     const data = JSON.parse(readFileSync(jsonPath, 'utf-8'));
 
     // Verify JSON structure
-    expect(data.version).toBe('0.1.0');
+    expect(data.version).toBe('0.2.2');
     expect(data.organisation).toBe('Acme Mining Corp');
     expect(data.sector).toBe('mining');
     expect(data.engineResult).toBeDefined();
@@ -91,7 +91,7 @@ describe('CLI Dry-Run', () => {
       `npx tsx src/cli.ts --version`,
       { cwd: PROJECT_ROOT, encoding: 'utf-8', timeout: 15_000 },
     );
-    expect(result.trim()).toBe('0.1.0');
+    expect(result.trim()).toBe('0.2.2');
   });
 
   it('shows help with --help', () => {

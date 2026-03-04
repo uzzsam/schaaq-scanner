@@ -27,6 +27,10 @@ encryption.key
 .env.local
 .env.*.local
 
+# Marketing site build
+site/node_modules/
+site/dist/
+
 # OS files
 .DS_Store
 Thumbs.db

@@ -13,6 +13,7 @@ import { projectRoutes } from './routes/projects';
 import { scanRoutes } from './routes/scans';
 import { apiKeyAuth } from './middleware/auth';
 import { dashboardRoutes } from './routes/dashboard';
+import { settingsRoutes } from './routes/settings';
 
 export interface ServerConfig {
   port: number;
@@ -127,8 +128,12 @@ export function createServer(config: ServerConfig): {
   });
 
   app.use('/api/dashboard', dashboardRoutes(repo));
-  app.use('/api/projects', credentialLimiter, projectRoutes(repo));
+  // Apply strict rate-limit only to credential-mutating methods (POST/PATCH), not GETs
+  app.post('/api/projects', credentialLimiter);
+  app.patch('/api/projects/:id', credentialLimiter);
+  app.use('/api/projects', projectRoutes(repo));
   app.use('/api/scans', scanRoutes(repo, scanRunner, sseConnections));
+  app.use('/api/settings', settingsRoutes(repo));
 
   // --- SSE endpoint for scan progress ---
   app.get('/api/scans/:scanId/progress', (req, res) => {

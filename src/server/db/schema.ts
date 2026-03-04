@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { join } from 'path';
 
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 const SCHEMA_SQL = `
   -- Projects represent client organisations
@@ -158,6 +158,13 @@ const SCHEMA_SQL = `
     metric TEXT
   );
 
+  -- Application settings (key-value store for branding, etc.)
+  CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+
   -- Indexes
   CREATE INDEX IF NOT EXISTS idx_scans_project ON scans(project_id);
   CREATE INDEX IF NOT EXISTS idx_scans_status ON scans(status);
@@ -286,6 +293,31 @@ export function initDatabase(dataDir: string): Database.Database {
         `);
       }
       db.prepare('INSERT OR REPLACE INTO schema_version (version) VALUES (?)').run(5);
+    }
+
+    if (currentVersion < 6) {
+      // v6: add settings table
+      const settingsTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='settings'").get();
+      if (!settingsTable) {
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TEXT DEFAULT (datetime('now'))
+          );
+        `);
+      }
+      // Seed default settings
+      db.exec(`
+        INSERT OR IGNORE INTO settings (key, value) VALUES
+          ('consultant_name', ''),
+          ('consultant_tagline', ''),
+          ('report_title', ''),
+          ('report_subtitle', ''),
+          ('consultant_logo', ''),
+          ('client_logo', '');
+      `);
+      db.prepare('INSERT OR REPLACE INTO schema_version (version) VALUES (?)').run(6);
     }
   }
 

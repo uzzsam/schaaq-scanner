@@ -541,6 +541,7 @@ export function scanRoutes(
         metric: s.metric ?? undefined,
       }));
 
+      const settings = repo.getAllSettings();
       const reportData = buildReportData(
         engineResult,
         scoredFindings,
@@ -549,6 +550,12 @@ export function scanRoutes(
         {
           strengths,
           databaseLabel: scan.db_version || undefined,
+          consultantName: settings.consultant_name || undefined,
+          consultantTagline: settings.consultant_tagline || undefined,
+          consultantLogoBase64: settings.consultant_logo || undefined,
+          clientLogoBase64: settings.client_logo || undefined,
+          reportTitle: settings.report_title || undefined,
+          reportSubtitle: settings.report_subtitle || undefined,
         },
       );
       const html = generateReport(reportData);
@@ -617,6 +624,7 @@ export function scanRoutes(
         metric: s.metric ?? undefined,
       }));
 
+      const pdfSettings = repo.getAllSettings();
       const reportData = buildReportData(
         engineResult,
         scoredFindings,
@@ -625,6 +633,12 @@ export function scanRoutes(
         {
           strengths,
           databaseLabel: scan.db_version || undefined,
+          consultantName: pdfSettings.consultant_name || undefined,
+          consultantTagline: pdfSettings.consultant_tagline || undefined,
+          consultantLogoBase64: pdfSettings.consultant_logo || undefined,
+          clientLogoBase64: pdfSettings.client_logo || undefined,
+          reportTitle: pdfSettings.report_title || undefined,
+          reportSubtitle: pdfSettings.report_subtitle || undefined,
         },
       );
       const html = generateReport(reportData);

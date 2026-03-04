@@ -533,6 +533,10 @@ ipcMain.on('window:exitFullscreen', () => {
   }
 });
 
+ipcMain.handle('window:isFullscreen', () => {
+  return mainWindow?.isFullScreen() ?? false;
+});
+
 // ---------------------------------------------------------------------------
 // PDF generation via Electron's built-in Chromium
 // ---------------------------------------------------------------------------

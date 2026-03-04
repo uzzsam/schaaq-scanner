@@ -452,6 +452,42 @@ export async function fetchTransformFindings(
 }
 
 // ---------------------------------------------------------------------------
+// Settings (branding / white-label)
+// ---------------------------------------------------------------------------
+
+export async function fetchSettings(): Promise<Record<string, string>> {
+  return request('/settings');
+}
+
+export async function updateSetting(key: string, value: string): Promise<void> {
+  await request(`/settings/${key}`, {
+    method: 'PUT',
+    body: JSON.stringify({ value }),
+  });
+}
+
+export async function uploadLogo(type: 'consultant' | 'client', file: File): Promise<void> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${BASE}/settings/logo/${type}`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText }));
+    throw new ApiError(res.status, body.error ?? res.statusText);
+  }
+}
+
+export async function deleteLogo(type: 'consultant' | 'client'): Promise<void> {
+  const res = await fetch(`${BASE}/settings/logo/${type}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText }));
+    throw new ApiError(res.status, body.error ?? res.statusText);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // SSE — scan progress stream
 // ---------------------------------------------------------------------------
 

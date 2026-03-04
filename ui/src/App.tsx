@@ -9,6 +9,7 @@ import { ScanProgress } from './pages/ScanProgress';
 import { ScanResults } from './pages/ScanResults';
 import { ScanProperties } from './pages/ScanProperties';
 import { ScanReport } from './pages/ScanReport';
+import { BrandingSettings } from './pages/BrandingSettings';
 
 const VERSION_KEY = 'schaaq_last_seen_version';
 
@@ -59,6 +60,7 @@ export default function App() {
           <Route path="/scans/:scanId/results" element={<ScanResults />} />
           <Route path="/scans/:scanId/properties" element={<ScanProperties />} />
           <Route path="/scans/:scanId/report" element={<ScanReport />} />
+          <Route path="/settings/branding" element={<BrandingSettings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>

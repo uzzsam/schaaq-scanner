@@ -51,8 +51,9 @@ export function ProjectForm() {
     aiBudgetAUD: 2500000, csrdInScope: false, canonicalInvestmentAUD: 1350000,
     dbType: 'postgresql', dbHost: 'localhost', dbPort: 5432,
     dbName: '', dbUsername: '', dbPassword: '', dbSsl: false,
-    dbSchemas: 'public',
+    dbSchemas: 'public', dbConnectionUri: '',
   });
+  const [dbConnectionMode, setDbConnectionMode] = useState<'fields' | 'uri'>('fields');
 
   const [dataSource, setDataSource] = useState<DataSource>('database');
   const [csvFiles, setCsvFiles] = useState<File[]>([]);
@@ -65,7 +66,7 @@ export function ProjectForm() {
 
   useEffect(() => {
     if (isEdit && id) {
-      fetchProject(id).then((p) => {
+      fetchProject(id).then((p: any) => {
         setForm({
           name: p.name, sector: p.sector as Sector,
           revenueAUD: p.revenue_aud, totalFTE: p.total_fte,
@@ -77,7 +78,12 @@ export function ProjectForm() {
           dbPort: p.db_port ?? 5432, dbName: p.db_name ?? '',
           dbUsername: p.db_username ?? '', dbPassword: '',
           dbSsl: p.db_ssl === 1, dbSchemas: p.db_schemas ?? 'public',
+          dbConnectionUri: '',
         });
+        // If a connection URI was previously set, switch to URI mode
+        if (p.db_connection_uri_set) {
+          setDbConnectionMode('uri');
+        }
       }).catch((err) => setFormError(err?.message ?? 'Failed to load project'));
     }
   }, [id, isEdit]);
@@ -126,16 +132,21 @@ export function ProjectForm() {
         aiBudgetAUD: form.aiBudgetAUD || undefined,
         csrdInScope: form.csrdInScope,
         canonicalInvestmentAUD: form.canonicalInvestmentAUD,
-        database: dataSource === 'database' ? {
-          type: form.dbType,
-          host: form.dbHost || undefined,
-          port: form.dbPort,
-          database: form.dbName || undefined,
-          username: form.dbUsername || undefined,
-          password: form.dbPassword || undefined,
-          ssl: form.dbSsl,
-          schemas: form.dbSchemas.split(',').map((s) => s.trim()).filter(Boolean),
-        } : undefined,
+        database: dataSource === 'database' ? (
+          dbConnectionMode === 'uri' ? {
+            type: form.dbType,
+            connectionUri: form.dbConnectionUri || undefined,
+          } : {
+            type: form.dbType,
+            host: form.dbHost || undefined,
+            port: form.dbPort,
+            database: form.dbName || undefined,
+            username: form.dbUsername || undefined,
+            password: form.dbPassword || undefined,
+            ssl: form.dbSsl,
+            schemas: form.dbSchemas.split(',').map((s) => s.trim()).filter(Boolean),
+          }
+        ) : undefined,
       };
 
       let projectId = id;
@@ -283,31 +294,73 @@ export function ProjectForm() {
                   <option value="mssql">SQL Server</option>
                 </select>
               </FormField>
-              <FormField label="Host">
-                <input style={inputStyle} value={form.dbHost} onChange={(e) => update('dbHost', e.target.value)} />
-              </FormField>
-              <FormField label="Port">
-                <input style={inputStyle} type="number" value={form.dbPort} onChange={(e) => update('dbPort', +e.target.value)} />
-              </FormField>
-              <FormField label="Database Name">
-                <input style={inputStyle} value={form.dbName} onChange={(e) => update('dbName', e.target.value)} />
-              </FormField>
-              <FormField label="Username">
-                <input style={inputStyle} value={form.dbUsername} onChange={(e) => update('dbUsername', e.target.value)} />
-              </FormField>
-              <FormField label="Password">
-                <input style={inputStyle} type="password" value={form.dbPassword} onChange={(e) => update('dbPassword', e.target.value)} placeholder={isEdit ? '••••••••' : ''} />
-              </FormField>
             </div>
-            <FormField label="Schemas (comma-separated)">
-              <input style={inputStyle} value={form.dbSchemas} onChange={(e) => update('dbSchemas', e.target.value)} placeholder="public, staging, analytics" />
-            </FormField>
-            <FormField label="">
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', color: '#D1D5DB', fontSize: 13 }}>
-                <input type="checkbox" checked={form.dbSsl} onChange={(e) => update('dbSsl', e.target.checked)} />
-                SSL connection
-              </label>
-            </FormField>
+
+            {/* Connection mode toggle */}
+            <div style={{ display: 'flex', gap: 8, margin: '12px 0' }}>
+              <button style={toggleBtnStyle(dbConnectionMode === 'fields')} onClick={() => setDbConnectionMode('fields')}>
+                Individual Fields
+              </button>
+              <button style={toggleBtnStyle(dbConnectionMode === 'uri')} onClick={() => setDbConnectionMode('uri')}>
+                Connection String
+              </button>
+            </div>
+
+            {dbConnectionMode === 'uri' ? (
+              <>
+                <FormField label="Connection String">
+                  <textarea
+                    style={{ ...inputStyle, minHeight: 80, resize: 'vertical', fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}
+                    value={form.dbConnectionUri}
+                    onChange={(e) => update('dbConnectionUri', e.target.value)}
+                    placeholder={
+                      form.dbType === 'mssql'
+                        ? 'Server=myserver;Database=mydb;User Id=sa;Password=secret;Encrypt=true;TrustServerCertificate=true;'
+                        : form.dbType === 'mysql'
+                        ? 'mysql://user:password@host:3306/database'
+                        : 'postgresql://user:password@host:5432/database?sslmode=require'
+                    }
+                  />
+                </FormField>
+                <div style={{ color: '#6B7280', fontSize: 11, marginTop: -8, marginBottom: 12, lineHeight: 1.6 }}>
+                  {form.dbType === 'mssql'
+                    ? 'Provide a full SQL Server connection string. Supports ADO.NET, ODBC, and JDBC formats.'
+                    : form.dbType === 'mysql'
+                    ? 'Provide a full MySQL connection URI (mysql://user:pass@host:port/database).'
+                    : 'Provide a full PostgreSQL connection URI (postgresql://user:pass@host:port/database).'}
+                  {' '}The connection string is encrypted at rest.
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={halfGrid}>
+                  <FormField label="Host">
+                    <input style={inputStyle} value={form.dbHost} onChange={(e) => update('dbHost', e.target.value)} />
+                  </FormField>
+                  <FormField label="Port">
+                    <input style={inputStyle} type="number" value={form.dbPort} onChange={(e) => update('dbPort', +e.target.value)} />
+                  </FormField>
+                  <FormField label="Database Name">
+                    <input style={inputStyle} value={form.dbName} onChange={(e) => update('dbName', e.target.value)} />
+                  </FormField>
+                  <FormField label="Username">
+                    <input style={inputStyle} value={form.dbUsername} onChange={(e) => update('dbUsername', e.target.value)} />
+                  </FormField>
+                  <FormField label="Password">
+                    <input style={inputStyle} type="password" value={form.dbPassword} onChange={(e) => update('dbPassword', e.target.value)} placeholder={isEdit ? '••••••••' : ''} />
+                  </FormField>
+                </div>
+                <FormField label="Schemas (comma-separated)">
+                  <input style={inputStyle} value={form.dbSchemas} onChange={(e) => update('dbSchemas', e.target.value)} placeholder="public, staging, analytics" />
+                </FormField>
+                <FormField label="">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', color: '#D1D5DB', fontSize: 13 }}>
+                    <input type="checkbox" checked={form.dbSsl} onChange={(e) => update('dbSsl', e.target.checked)} />
+                    SSL connection
+                  </label>
+                </FormField>
+              </>
+            )}
           </>
         )}
 

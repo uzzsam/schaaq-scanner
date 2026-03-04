@@ -69,19 +69,24 @@ export function ScanReport() {
           setPdfError(result.reason ?? 'PDF generation failed');
         }
       } else {
-        // Browser mode: use server-side puppeteer-core route
-        const response = await fetch(getExportPdfUrl(scanId));
-        if (!response.ok) {
-          const body = await response.json().catch(() => ({}));
-          throw new Error(body.error ?? body.hint ?? `HTTP ${response.status}`);
+        // Browser mode: try server PDF endpoint, fall back to HTML report
+        try {
+          const response = await fetch(getExportPdfUrl(scanId));
+          if (response.ok) {
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `schaaq-report-${scanId.slice(0, 8)}.pdf`;
+            a.click();
+            URL.revokeObjectURL(url);
+          } else {
+            // Server can't generate PDF — open HTML report in new tab
+            window.open(getExportHtmlUrl(scanId), '_blank');
+          }
+        } catch {
+          window.open(getExportHtmlUrl(scanId), '_blank');
         }
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `schaaq-report-${scanId.slice(0, 8)}.pdf`;
-        a.click();
-        URL.revokeObjectURL(url);
       }
     } catch (err: any) {
       setPdfError(err?.message ?? 'PDF generation failed');

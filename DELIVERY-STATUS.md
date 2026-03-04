@@ -70,6 +70,53 @@ Current version: **v0.2.2**
 
 ---
 
+## Phase 3: Branded Report — The Money Maker
+
+**Gold Standard §10 — Professional Reports**
+
+| Item | Status |
+|---|---|
+| Branded PDF report | Electron printToPDF + server fallback |
+| Executive summary page | One-pager with radar, top 3, recommendation |
+| Data quality scorecard | SVG radar chart (7 properties) |
+| Findings table with severity | Full detail with db-specific remediation |
+| 5-year cost projection chart | Dual-bar comparison |
+| White-label fields | Consultant/client logos, custom titles |
+| Strengths section | "What's Working Well" in report |
+| Database context | Engine-specific messaging |
+
+### Verification Results (3 March 2026)
+
+| Test | Result |
+|------|--------|
+| `npm run build:full` | Clean (server + UI + Electron) |
+| `npm test` | 547 passed, 44 skipped (Docker-dependent) |
+| Settings page accessible from sidebar | Gear icon at bottom of sidebar |
+| Consultant name and tagline entry | Text inputs, save with feedback |
+| Logo upload with preview | Drag-drop, PNG/JPEG/SVG, max 500KB |
+| HTML report reflects branding | Consultant name, tagline, logos in header/footer |
+| PDF download in Electron | printToPDF via IPC, save dialog |
+| PDF download in browser | Server-side puppeteer-core, falls back to HTML |
+| CSV source report | "CSV/Excel Upload" label, CSV-appropriate remediation |
+| Strengths in report | "What's Working Well" section with positive observations |
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `src/report/generator.ts` | Enhanced Handlebars template with radar, strengths, branding |
+| `electron/main.ts` | IPC handler for printToPDF |
+| `electron/preload.ts` | Exposed generatePdf channel |
+| `src/server/routes/scans.ts` | HTML + PDF export routes with branding pass-through |
+| `src/server/routes/settings.ts` | Branding settings API (CRUD + logo upload) |
+| `src/server/db/schema.ts` | settings table (v6 migration) |
+| `src/server/db/repository.ts` | getSetting, setSetting, getAllSettings |
+| `ui/src/pages/BrandingSettings.tsx` | Branding config UI (text + logo uploads) |
+| `ui/src/pages/ScanReport.tsx` | Enabled PDF download with fallback |
+| `ui/src/api/client.ts` | Settings API client functions |
+
+---
+
 ## Key Files Reference
 
 | File | Purpose |
@@ -82,3 +129,72 @@ Current version: **v0.2.2**
 | `ui/src/components/LoadingSkeleton.tsx` | Animated skeleton placeholders |
 | `ui/src/components/ErrorState.tsx` | Friendly error display with retry |
 | `ui/src/types/schaaq.d.ts` | TypeScript declarations for Electron bridge |
+
+---
+
+## Phase 5: Web Presence
+
+**Gold Standard §7, §9, §12**
+
+| Item | Status |
+|---|---|
+| Product landing page | Hero, features, 7 properties, personas, sectors, report preview |
+| Download page with OS detection | Auto-detect Windows/macOS/Linux, GitHub Releases links, version fetch |
+| Getting Started guide | 6-step quickstart with sticky TOC sidebar and scroll-spy |
+| Changelog page | Rendered from CHANGELOG.md via GitHub raw URL |
+| Legal pages (Privacy, ToS, EULA) | Rendered from repo markdown via GitHub raw URL |
+| Security practices page | Rendered from repo markdown via GitHub raw URL |
+| 404 page | "Page not found" with back-to-home link |
+| Open Graph meta tags | og:title, og:description, og:image, twitter:card |
+| Favicon | SVG "Q" logo mark |
+| Deployment config | Vercel (vercel.json) + GitHub Pages ready (vite base config) |
+| SEO document titles | Every page sets `<title>` via useDocumentTitle hook |
+| Screenshot gallery | Screenshots needed (checklist created) |
+| Demo video | Script/storyboard needed |
+
+### Verification Results (3 March 2026)
+
+| Test | Result |
+|------|--------|
+| `cd site && npm run build` | 57 modules, 326KB / 100KB gzip, clean |
+| `npx tsc --noEmit` | Zero errors |
+| `/` landing page | Hero, $2.4M stat, 3 steps, 7 properties, report mockup, personas, sectors, CTA |
+| `/download` | Windows detected, "Recommended" badge, 3 platform cards, GitHub URLs |
+| `/docs/start` | 6-step guide, sticky TOC, mobile dropdown, scroll-spy highlights |
+| `/changelog` | Fetches from GitHub raw, graceful fallback on 404 |
+| `/legal/privacy` | Fetches from GitHub raw, markdown-body styling |
+| `/legal/terms` | Fetches from GitHub raw, markdown-body styling |
+| `/legal/eula` | Fetches from GitHub raw, markdown-body styling |
+| `/security` | Fetches from GitHub raw, markdown-body styling |
+| `/nonexistent` | 404 page with "Page not found" and back link |
+| Navigation links | Header and footer links all functional |
+| Document titles | Each page sets correct `<title>` via hook |
+| `npm test` (main app) | 547 passed, 44 skipped (Docker-dependent only) |
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `site/` | Vite + React marketing site (separate from scanner UI) |
+| `site/src/pages/Landing.tsx` | Landing page — 8 sections, scroll-reveal, radar chart SVG |
+| `site/src/pages/Download.tsx` | Download page — OS detection, GitHub version fetch |
+| `site/src/pages/GettingStarted.tsx` | Getting Started — 6-step guide, sticky TOC, scroll-spy |
+| `site/src/components/MarkdownPage.tsx` | Markdown renderer — fetch from GitHub raw, loading skeleton |
+| `site/src/components/SiteLayout.tsx` | Header (sticky, nav, CTA) + footer (3-column, legal links) |
+| `site/src/components/docs/CodeBlock.tsx` | Code snippet with copy button |
+| `site/src/components/docs/Callout.tsx` | Tip/warning/note box |
+| `site/src/hooks/useScrollReveal.ts` | IntersectionObserver scroll-reveal with stagger |
+| `site/src/hooks/useActiveSection.ts` | Scroll-spy for TOC highlight |
+| `site/src/hooks/useDocumentTitle.ts` | Sets document.title per page |
+| `site/vercel.json` | SPA rewrites + security headers |
+| `site/SCREENSHOTS-NEEDED.md` | Screenshot capture checklist (14 items) |
+
+### Manual Steps (Uzy)
+
+- [ ] Take screenshots from running app (see `site/SCREENSHOTS-NEEDED.md`)
+- [ ] Record 60-90 second demo video (Loom or OBS)
+- [ ] Deploy site to Vercel or GitHub Pages
+- [ ] Point scanner.schaaq.com (or schaaq.com) to the deployment
+- [ ] Convert `og-image.svg` to `og-image.png` (1200x630) for social sharing
+- [ ] Push legal markdown files to `legal/` directory in repo (privacy-policy.md, terms-of-service.md, eula.md, security-practices.md)
+- [ ] Push CHANGELOG.md to repo root

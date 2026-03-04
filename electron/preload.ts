@@ -22,10 +22,5 @@ contextBridge.exposeInMainWorld('schaaq', {
 
   // Fullscreen controls
   exitFullscreen: () => ipcRenderer.send('window:exitFullscreen'),
-  onFullscreenChange: (callback: (isFullscreen: boolean) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, value: boolean) => callback(value);
-    ipcRenderer.on('window:fullscreenChanged', handler);
-    // Return cleanup function
-    return () => ipcRenderer.removeListener('window:fullscreenChanged', handler);
-  },
+  getIsFullscreen: () => ipcRenderer.invoke('window:isFullscreen') as Promise<boolean>,
 });

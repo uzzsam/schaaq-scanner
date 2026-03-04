@@ -47,7 +47,10 @@
     "pack": "npm run build:full && npx electron-rebuild --force && electron-builder --win --dir --config.npmRebuild=false",
     "dist": "npm run build:full && npx electron-rebuild --force && electron-builder --win --config.npmRebuild=false",
     "icons": "node scripts/generate-icons.mjs",
-    "release": "bash scripts/release.sh"
+    "release": "bash scripts/release.sh",
+    "site:dev": "cd site && npm run dev",
+    "site:build": "cd site && npm run build",
+    "site:preview": "cd site && npm run preview"
   },
   "dependencies": {
     "adm-zip": "^0.5.16",

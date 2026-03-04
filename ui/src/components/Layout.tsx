@@ -68,11 +68,19 @@ export function Layout({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Track fullscreen state from Electron
+  // Poll fullscreen state from Electron (invoke is reliable across contextBridge)
   useEffect(() => {
-    if (!window.schaaq?.onFullscreenChange) return;
-    const cleanup = window.schaaq.onFullscreenChange(setIsFullscreen);
-    return cleanup;
+    if (!window.schaaq?.getIsFullscreen) return;
+    let active = true;
+    const poll = () => {
+      if (!active) return;
+      window.schaaq!.getIsFullscreen().then((fs) => {
+        if (active) setIsFullscreen(fs);
+      }).catch(() => {});
+    };
+    poll(); // immediate check
+    const id = setInterval(poll, 400);
+    return () => { active = false; clearInterval(id); };
   }, []);
 
   const handleExitFullscreen = () => {
