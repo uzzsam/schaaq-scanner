@@ -30,20 +30,28 @@ export function projectRoutes(repo: Repository): Router {
       return;
     }
 
-    if (type === 'mysql') {
-      // MySQL adapter is not yet implemented
-      res.status(400).json({ error: 'MySQL adapter is not yet available. Only PostgreSQL and SQL Server are currently supported for live connections.' });
-      return;
-    }
-
-    if (type !== 'postgresql' && type !== 'mssql') {
+    if (type !== 'postgresql' && type !== 'mssql' && type !== 'mysql') {
       res.status(400).json({ error: `Unsupported database type: ${type}` });
       return;
     }
 
     let adapter: import('../../adapters/types').DatabaseAdapter | null = null;
     try {
-      if (type === 'mssql') {
+      if (type === 'mysql') {
+        const { MySQLAdapter } = await import('../../adapters/mysql');
+        adapter = new MySQLAdapter({
+          type: 'mysql',
+          host: host ?? 'localhost',
+          port: port ?? 3306,
+          database: database ?? undefined,
+          username: username ?? undefined,
+          password: password ?? undefined,
+          ssl: ssl ?? false,
+          schemas: database ? [database] : [],
+          excludeTables: [],
+          maxTablesPerSchema: 500,
+        });
+      } else if (type === 'mssql') {
         const { MSSQLAdapter } = await import('../../adapters/mssql');
         adapter = new MSSQLAdapter({
           type: 'mssql',
@@ -96,9 +104,31 @@ export function projectRoutes(repo: Repository): Router {
     }
 
     if (type === 'mysql') {
-      // TODO: Implement proper MySQL schema discovery once MySQL adapter is built.
-      // For now return the database name itself as the schema (MySQL conflates the two).
-      res.json({ schemas: database ? [database] : ['public'] });
+      // MySQL conflates database and schema — list databases the user can access
+      let conn: import('mysql2/promise').Connection | null = null;
+      try {
+        const mysql = await import('mysql2/promise');
+        conn = await mysql.default.createConnection({
+          host: host ?? 'localhost',
+          port: port ?? 3306,
+          database: database ?? undefined,
+          user: username ?? undefined,
+          password: password ?? undefined,
+          ssl: ssl ? { rejectUnauthorized: false } : undefined,
+          connectTimeout: 15_000,
+        });
+
+        const [rows] = await conn.query(
+          `SELECT SCHEMA_NAME FROM information_schema.SCHEMATA
+           WHERE SCHEMA_NAME NOT IN ('information_schema', 'performance_schema', 'mysql', 'sys')
+           ORDER BY SCHEMA_NAME`,
+        );
+        res.json({ schemas: (rows as any[]).map((r: any) => r.SCHEMA_NAME) });
+      } catch (err: any) {
+        res.status(400).json({ error: err.message ?? 'Failed to list schemas' });
+      } finally {
+        try { await conn?.end(); } catch { /* ignore */ }
+      }
       return;
     }
 

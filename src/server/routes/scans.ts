@@ -158,11 +158,13 @@ export function scanRoutes(
               maxTablesPerSchema: 500,
             };
 
-            if (project.db_type === 'mssql') {
+            if (project.db_type === 'mysql') {
+              const { MySQLAdapter } = await import('../../adapters/mysql');
+              adapter = new MySQLAdapter(adapterConfig);
+            } else if (project.db_type === 'mssql') {
               const { MSSQLAdapter } = await import('../../adapters/mssql');
               adapter = new MSSQLAdapter(adapterConfig);
             } else {
-              // Default to PostgreSQL (MySQL not yet supported for live scans)
               const { PostgreSQLAdapter } = await import('../../adapters/postgres');
               adapter = new PostgreSQLAdapter(adapterConfig);
             }
