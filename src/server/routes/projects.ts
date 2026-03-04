@@ -20,6 +20,163 @@ function redactCredentials(project: ProjectRow): Record<string, unknown> {
 export function projectRoutes(repo: Repository): Router {
   const router = Router();
 
+  // -------------------------------------------------------------------------
+  // Test database connection (wizard step 2)
+  // -------------------------------------------------------------------------
+  router.post('/test-connection', async (req, res) => {
+    const { type, host, port, database, username, password, ssl } = req.body;
+    if (!type) {
+      res.status(400).json({ error: 'Database type is required' });
+      return;
+    }
+
+    if (type === 'mysql') {
+      // MySQL adapter is not yet implemented
+      res.status(400).json({ error: 'MySQL adapter is not yet available. Only PostgreSQL and SQL Server are currently supported for live connections.' });
+      return;
+    }
+
+    if (type !== 'postgresql' && type !== 'mssql') {
+      res.status(400).json({ error: `Unsupported database type: ${type}` });
+      return;
+    }
+
+    let adapter: import('../../adapters/types').DatabaseAdapter | null = null;
+    try {
+      if (type === 'mssql') {
+        const { MSSQLAdapter } = await import('../../adapters/mssql');
+        adapter = new MSSQLAdapter({
+          type: 'mssql',
+          host: host ?? 'localhost',
+          port: port ?? 1433,
+          database: database ?? undefined,
+          username: username ?? undefined,
+          password: password ?? undefined,
+          ssl: ssl ?? false,
+          schemas: ['dbo'],
+          excludeTables: [],
+          maxTablesPerSchema: 500,
+        });
+      } else {
+        const { PostgreSQLAdapter } = await import('../../adapters/postgres');
+        adapter = new PostgreSQLAdapter({
+          type: 'postgresql',
+          host: host ?? 'localhost',
+          port: port ?? 5432,
+          database: database ?? undefined,
+          username: username ?? undefined,
+          password: password ?? undefined,
+          ssl: ssl ?? false,
+          schemas: ['public'],
+          excludeTables: [],
+          maxTablesPerSchema: 500,
+        });
+      }
+
+      await adapter.connect();
+      await adapter.disconnect();
+      adapter = null;
+      res.json({ ok: true, message: 'Connection successful' });
+    } catch (err: any) {
+      // Return the real error message so the user can diagnose connection issues
+      res.status(400).json({ error: err.message ?? 'Connection failed' });
+    } finally {
+      try { await adapter?.disconnect(); } catch { /* already closed or never opened */ }
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // List available schemas (wizard step 3)
+  // -------------------------------------------------------------------------
+  router.post('/schemas', async (req, res) => {
+    const { type, host, port, database, username, password, ssl } = req.body;
+    if (!type) {
+      res.status(400).json({ error: 'Database type is required' });
+      return;
+    }
+
+    if (type === 'mysql') {
+      // TODO: Implement proper MySQL schema discovery once MySQL adapter is built.
+      // For now return the database name itself as the schema (MySQL conflates the two).
+      res.json({ schemas: database ? [database] : ['public'] });
+      return;
+    }
+
+    if (type === 'mssql') {
+      // Query sys.schemas for real schema list via mssql driver
+      let pool: import('mssql').ConnectionPool | null = null;
+      try {
+        const mssql = await import('mssql');
+        pool = new mssql.default.ConnectionPool({
+          server: host ?? 'localhost',
+          port: port ?? 1433,
+          database: database ?? undefined,
+          user: username ?? undefined,
+          password: password ?? undefined,
+          options: {
+            encrypt: ssl ?? false,
+            trustServerCertificate: true,
+          },
+          connectionTimeout: 15_000,
+          requestTimeout: 15_000,
+        });
+        await pool.connect();
+
+        const result = await pool.request().query(`
+          SELECT name FROM sys.schemas
+          WHERE name NOT IN (
+            'guest', 'INFORMATION_SCHEMA', 'sys',
+            'db_owner', 'db_accessadmin', 'db_securityadmin',
+            'db_ddladmin', 'db_backupoperator', 'db_datareader',
+            'db_datawriter', 'db_denydatareader', 'db_denydatawriter'
+          )
+          ORDER BY name
+        `);
+        res.json({ schemas: result.recordset.map((r: any) => r.name) });
+      } catch (err: any) {
+        res.status(400).json({ error: err.message ?? 'Failed to list schemas' });
+      } finally {
+        try { await pool?.close(); } catch { /* ignore */ }
+      }
+      return;
+    }
+
+    if (type !== 'postgresql') {
+      res.status(400).json({ error: `Unsupported database type: ${type}` });
+      return;
+    }
+
+    // PostgreSQL — query information_schema for real schema list
+    let pgClient: import('pg').Client | null = null;
+    try {
+      const { Client } = await import('pg');
+      pgClient = new Client({
+        host: host ?? 'localhost',
+        port: port ?? 5432,
+        database: database ?? undefined,
+        user: username ?? undefined,
+        password: password ?? undefined,
+        ssl: ssl ? { rejectUnauthorized: false } : false,
+      });
+      await pgClient.connect();
+
+      const result = await pgClient.query(
+        `SELECT schema_name FROM information_schema.schemata
+         WHERE schema_name NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+         ORDER BY schema_name`,
+      );
+      res.json({ schemas: result.rows.map((r: any) => r.schema_name) });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message ?? 'Failed to list schemas' });
+    } finally {
+      try { await pgClient?.end(); } catch { /* ignore */ }
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // CRUD
+  // -------------------------------------------------------------------------
+
   // List all projects
   router.get('/', (req, res) => {
     try {

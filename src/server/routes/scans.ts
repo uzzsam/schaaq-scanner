@@ -144,13 +144,11 @@ export function scanRoutes(
         try {
           let adapter: import('../../adapters/types').DatabaseAdapter | null = null;
           if (!dryRun && project.db_host) {
-            // Dynamic import to avoid requiring pg when not using postgres
-            const { PostgreSQLAdapter } = await import('../../adapters/postgres');
-            adapter = new PostgreSQLAdapter({
-              type: project.db_type as any,
+            const adapterConfig = {
+              type: project.db_type as 'postgresql' | 'mysql' | 'mssql',
               connectionUri: project.db_connection_uri ?? undefined,
               host: project.db_host ?? 'localhost',
-              port: project.db_port ?? 5432,
+              port: project.db_port ?? (project.db_type === 'mssql' ? 1433 : 5432),
               database: project.db_name ?? undefined,
               username: project.db_username ?? undefined,
               password: project.db_password ?? undefined,
@@ -158,7 +156,16 @@ export function scanRoutes(
               schemas: safeJsonParse<string[]>(project.db_schemas ?? '["public"]', ['public'], 'projects.db_schemas'),
               excludeTables: [],
               maxTablesPerSchema: 500,
-            });
+            };
+
+            if (project.db_type === 'mssql') {
+              const { MSSQLAdapter } = await import('../../adapters/mssql');
+              adapter = new MSSQLAdapter(adapterConfig);
+            } else {
+              // Default to PostgreSQL (MySQL not yet supported for live scans)
+              const { PostgreSQLAdapter } = await import('../../adapters/postgres');
+              adapter = new PostgreSQLAdapter(adapterConfig);
+            }
           }
 
           await scanRunner.run(scan.id, config, adapter, dryRun ?? false);
