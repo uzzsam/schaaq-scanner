@@ -731,9 +731,9 @@ describe('CSV source — p5MissingPk severity downgrade', () => {
 // ALL_CHECKS array validation
 // =============================================================================
 describe('ALL_CHECKS array', () => {
-  it('has 15 checks', async () => {
+  it('has 18 checks', async () => {
     const { ALL_CHECKS } = await import('../../src/checks/index');
-    expect(ALL_CHECKS).toHaveLength(15);
+    expect(ALL_CHECKS).toHaveLength(18);
   });
 
   it('covers all 7 properties', async () => {
