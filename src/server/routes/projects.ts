@@ -30,6 +30,12 @@ export function projectRoutes(repo: Repository): Router {
       return;
     }
 
+    // Demo mode — instant success, no connection needed
+    if (type === 'demo') {
+      res.json({ ok: true, message: 'Demo database ready \u2014 no connection required' });
+      return;
+    }
+
     if (type !== 'postgresql' && type !== 'mssql' && type !== 'mysql') {
       res.status(400).json({ error: `Unsupported database type: ${type}` });
       return;
@@ -187,6 +193,7 @@ export function projectRoutes(repo: Repository): Router {
         user: username ?? undefined,
         password: password ?? undefined,
         ssl: ssl ? { rejectUnauthorized: false } : false,
+        connectionTimeoutMillis: 15_000,
       });
       await pgClient.connect();
 

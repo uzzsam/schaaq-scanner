@@ -9,7 +9,7 @@ import { z } from 'zod';
 // ---------------------------------------------------------------------------
 
 const databaseConfigSchema = z.object({
-  type: z.enum(['postgresql', 'mysql', 'mssql']).optional(),
+  type: z.enum(['postgresql', 'mysql', 'mssql', 'demo']).optional(),
   host: z.string().min(1).max(255).optional(),
   port: z.number().int().min(1).max(65535).optional(),
   database: z.string().min(1).max(255).optional(),

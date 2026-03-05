@@ -143,7 +143,12 @@ export function scanRoutes(
       setImmediate(async () => {
         try {
           let adapter: import('../../adapters/types').DatabaseAdapter | null = null;
-          if (!dryRun && project.db_host) {
+
+          // Demo adapter — no real connection needed
+          if (project.db_type === 'demo') {
+            const { DemoAdapter } = await import('../../adapters/demo');
+            adapter = new DemoAdapter();
+          } else if (!dryRun && project.db_host) {
             const adapterConfig = {
               type: project.db_type as 'postgresql' | 'mysql' | 'mssql',
               connectionUri: project.db_connection_uri ?? undefined,

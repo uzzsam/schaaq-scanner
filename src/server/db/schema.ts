@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { join } from 'path';
 
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 
 const SCHEMA_SQL = `
   -- Projects represent client organisations
@@ -19,7 +19,7 @@ const SCHEMA_SQL = `
     canonical_investment_aud REAL NOT NULL DEFAULT 1350000,
 
     -- Database connection (AES-256-GCM encrypted at rest — see src/server/db/crypto.ts)
-    db_type TEXT DEFAULT 'postgresql' CHECK (db_type IN ('postgresql', 'mysql', 'mssql')),
+    db_type TEXT DEFAULT 'postgresql' CHECK (db_type IN ('postgresql', 'mysql', 'mssql', 'demo')),
     db_host TEXT,
     db_port INTEGER,
     db_name TEXT,
@@ -318,6 +318,52 @@ export function initDatabase(dataDir: string): Database.Database {
           ('client_logo', '');
       `);
       db.prepare('INSERT OR REPLACE INTO schema_version (version) VALUES (?)').run(6);
+    }
+
+    if (currentVersion < 7) {
+      // v7: add 'demo' to db_type CHECK constraint
+      // SQLite cannot ALTER CHECK constraints, so we recreate the projects table.
+      // Use a transaction for atomicity; drop stale temp table if a prior run was interrupted.
+      db.exec(`BEGIN TRANSACTION`);
+      try {
+        db.exec(`DROP TABLE IF EXISTS projects_new`);
+        db.exec(`
+          CREATE TABLE projects_new (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            sector TEXT NOT NULL CHECK (sector IN ('mining', 'environmental', 'energy')),
+            revenue_aud REAL NOT NULL,
+            total_fte INTEGER NOT NULL,
+            data_engineers INTEGER NOT NULL,
+            avg_salary_aud REAL NOT NULL,
+            avg_fte_salary_aud REAL NOT NULL,
+            ai_budget_aud REAL DEFAULT 0,
+            csrd_in_scope INTEGER NOT NULL DEFAULT 0,
+            canonical_investment_aud REAL NOT NULL DEFAULT 1350000,
+            db_type TEXT DEFAULT 'postgresql' CHECK (db_type IN ('postgresql', 'mysql', 'mssql', 'demo')),
+            db_host TEXT,
+            db_port INTEGER,
+            db_name TEXT,
+            db_username TEXT,
+            db_password TEXT,
+            db_ssl INTEGER DEFAULT 0,
+            db_schemas TEXT DEFAULT '["public"]',
+            db_connection_uri TEXT,
+            thresholds_json TEXT DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            archived INTEGER NOT NULL DEFAULT 0
+          )
+        `);
+        db.exec(`INSERT INTO projects_new SELECT * FROM projects`);
+        db.exec(`DROP TABLE projects`);
+        db.exec(`ALTER TABLE projects_new RENAME TO projects`);
+        db.prepare('INSERT OR REPLACE INTO schema_version (version) VALUES (?)').run(7);
+        db.exec(`COMMIT`);
+      } catch (err) {
+        db.exec(`ROLLBACK`);
+        throw err;
+      }
     }
   }
 

@@ -5,7 +5,7 @@
 
 export interface SchemaData {
   // Metadata
-  databaseType: 'postgresql' | 'mysql' | 'mssql' | 'csv' | 'powerbi' | 'tableau';
+  databaseType: 'postgresql' | 'mysql' | 'mssql' | 'csv' | 'powerbi' | 'tableau' | 'demo';
   databaseVersion: string;
   extractedAt: string;              // ISO 8601 timestamp
 

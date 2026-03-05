@@ -95,6 +95,28 @@ test.beforeAll(async () => {
   const launched = await launchApp();
   electronApp = launched.app;
   page = launched.page;
+
+  // On fresh install with 0 projects, the Dashboard shows a full-screen
+  // WelcomeWizard overlay (z-index: 9999) that blocks all pointer events
+  // including sidebar navigation. Dismiss it by programmatically clicking
+  // the Projects sidebar button via DOM (bypasses the overlay).
+  const isWelcomeVisible = await page
+    .getByText('Welcome to Schaaq Scanner')
+    .isVisible()
+    .catch(() => false);
+
+  if (isWelcomeVisible) {
+    await page.evaluate(() => {
+      const buttons = document.querySelectorAll('button');
+      for (const btn of buttons) {
+        if (btn.textContent?.trim().includes('Projects')) {
+          btn.click();
+          return;
+        }
+      }
+    });
+    await page.waitForTimeout(1_000);
+  }
 });
 
 test.afterAll(async () => {
@@ -150,17 +172,14 @@ test('app launches and renders without crash', async () => {
 test('sidebar navigation links work without blank screens', async () => {
   // Sidebar buttons may be partially overlapped by the content area div,
   // so we use { force: true } to bypass the actionability check.
-
-  // Navigate to Dashboard (root)
-  await page.locator('button:has-text("Dashboard")').first().click({ force: true });
-  await page.waitForLoadState('networkidle');
-  let content = await page.textContent('body');
-  expect(content!.length).toBeGreaterThan(10);
+  //
+  // Note: Dashboard is skipped because on fresh install the WelcomeWizard
+  // overlay blocks all sidebar interaction. We test Projects ↔ Settings instead.
 
   // Navigate to Projects
   await page.locator('button:has-text("Projects")').first().click({ force: true });
   await page.waitForLoadState('networkidle');
-  content = await page.textContent('body');
+  let content = await page.textContent('body');
   expect(content!.length).toBeGreaterThan(10);
   // Should show either project list or empty state
   const hasProjectsContent =
@@ -170,6 +189,12 @@ test('sidebar navigation links work without blank screens', async () => {
 
   // Navigate to Settings
   await page.locator('button:has-text("Settings")').first().click({ force: true });
+  await page.waitForLoadState('networkidle');
+  content = await page.textContent('body');
+  expect(content!.length).toBeGreaterThan(10);
+
+  // Navigate back to Projects
+  await page.locator('button:has-text("Projects")').first().click({ force: true });
   await page.waitForLoadState('networkidle');
   content = await page.textContent('body');
   expect(content!.length).toBeGreaterThan(10);
@@ -328,7 +353,40 @@ test('wizard cancel closes the modal', async () => {
   expect(projectsVisible).toBe(true);
 });
 
-// ── Test 8: Dry run scan (if a project exists) ──────────────────────────
+// ── Test 8: Demo mode — full flow ───────────────────────────────────────
+
+test('demo mode creates project and appears in list', async () => {
+  // Navigate to Projects page
+  await page.locator('button:has-text("Projects")').first().click({ force: true });
+  await page.waitForLoadState('networkidle');
+
+  // Open the connection wizard
+  const createBtn = page.locator('button:has-text("Create Project"), button:has-text("New Project")');
+  await createBtn.first().click();
+
+  // Verify Demo Database option is visible in Step 1
+  await expect(page.getByText('Demo Database')).toBeVisible({ timeout: 5_000 });
+
+  // Click Demo Database
+  await page.getByText('Demo Database').click();
+
+  // Verify "Start Demo Scan" button appears (steps 2/3 skipped)
+  const demoBtn = page.locator('button:has-text("Start Demo Scan")');
+  await expect(demoBtn).toBeVisible({ timeout: 3_000 });
+
+  // Click Start Demo Scan — should create project and navigate to edit page
+  await demoBtn.click();
+  await page.waitForURL(/\/projects\/.*\/edit/, { timeout: 15_000 });
+
+  // Navigate back to projects list
+  await page.locator('button:has-text("Projects")').first().click({ force: true });
+  await page.waitForLoadState('networkidle');
+
+  // Verify "Pilbara Resources — Demo" appears in the project list
+  await expect(page.getByText('Pilbara Resources', { exact: false })).toBeVisible({ timeout: 5_000 });
+});
+
+// ── Test 9: Dry run scan (uses demo project from Test 8) ────────────────
 
 test('dry run scan navigates to progress screen', async () => {
   await page.locator('button:has-text("Projects")').first().click({ force: true });

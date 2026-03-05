@@ -6,7 +6,7 @@ import { createProject, type CreateProjectInput, type Sector } from '../api/clie
 // Types
 // ---------------------------------------------------------------------------
 
-type DbType = 'postgresql' | 'mysql' | 'mssql';
+type DbType = 'postgresql' | 'mysql' | 'mssql' | 'demo';
 type WizardStep = 1 | 2 | 3;
 
 interface ConnectionWizardProps {
@@ -18,6 +18,7 @@ interface ConnectionWizardProps {
 // ---------------------------------------------------------------------------
 
 const DB_OPTIONS: { type: DbType; label: string; icon: string; description: string; defaultPort: number }[] = [
+  { type: 'demo', label: 'Demo Database', icon: '\u25C8', description: 'Explore Schaaq with sample mining industry data \u2014 no connection required', defaultPort: 0 },
   { type: 'postgresql', label: 'PostgreSQL', icon: '\u25C8', description: 'Open-source relational database', defaultPort: 5432 },
   { type: 'mysql', label: 'MySQL', icon: '\u2736', description: 'Popular open-source SQL database', defaultPort: 3306 },
   { type: 'mssql', label: 'SQL Server', icon: '\u2B23', description: 'Microsoft enterprise database', defaultPort: 1433 },
@@ -46,6 +47,7 @@ export function ConnectionWizard({ onClose }: ConnectionWizardProps) {
   const [ssl, setSsl] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   // Step 3 state
   const [schemas, setSchemas] = useState<string[]>([]);
@@ -60,9 +62,10 @@ export function ConnectionWizard({ onClose }: ConnectionWizardProps) {
     requestAnimationFrame(() => setVisible(true));
   }, []);
 
-  // Reset test result when connection fields change
+  // Reset test result and field errors when connection fields change
   useEffect(() => {
     setTestResult(null);
+    setFieldErrors({});
   }, [host, port, dbName, username, password, ssl]);
 
   // When db type changes, update port
@@ -74,15 +77,33 @@ export function ConnectionWizard({ onClose }: ConnectionWizardProps) {
   }, [dbType]);
 
   // ------------------------------------------------------------------
+  // Validate step-2 fields before test connection
+  // ------------------------------------------------------------------
+  const validateFields = (): boolean => {
+    const errors: Record<string, string> = {};
+    if (!host.trim()) errors.host = 'Host is required';
+    if (isNaN(port) || port < 1 || port > 65535) errors.port = 'Port must be 1\u201365535';
+    if (!dbName.trim()) errors.database = 'Database name is required';
+    if (!username.trim()) errors.username = 'Username is required';
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // ------------------------------------------------------------------
   // Test connection
   // ------------------------------------------------------------------
   const handleTestConnection = async () => {
+    if (!validateFields()) return;
+
     setTesting(true);
     setTestResult(null);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20_000);
     try {
       const res = await fetch(`${BASE}/projects/test-connection`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           type: dbType, host, port, database: dbName,
           username, password, ssl,
@@ -95,8 +116,13 @@ export function ConnectionWizard({ onClose }: ConnectionWizardProps) {
         setTestResult({ ok: false, message: data.error ?? 'Connection failed' });
       }
     } catch (err: any) {
-      setTestResult({ ok: false, message: err.message ?? 'Connection failed' });
+      if (err.name === 'AbortError') {
+        setTestResult({ ok: false, message: 'Connection timed out after 20 seconds. Check the host and port are correct.' });
+      } else {
+        setTestResult({ ok: false, message: err.message ?? 'Connection failed' });
+      }
     } finally {
+      clearTimeout(timeout);
       setTesting(false);
     }
   };
@@ -107,10 +133,13 @@ export function ConnectionWizard({ onClose }: ConnectionWizardProps) {
   const fetchSchemas = async () => {
     setSchemasFetched(false);
     setSchemaError(false);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20_000);
     try {
       const res = await fetch(`${BASE}/projects/schemas`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           type: dbType, host, port, database: dbName,
           username, password, ssl,
@@ -125,6 +154,8 @@ export function ConnectionWizard({ onClose }: ConnectionWizardProps) {
     } catch {
       setSchemaError(true);
       setSchemasFetched(true);
+    } finally {
+      clearTimeout(timeout);
     }
   };
 
@@ -166,6 +197,37 @@ export function ConnectionWizard({ onClose }: ConnectionWizardProps) {
       navigate(`/projects/${project.id}/edit`);
     } catch (err: any) {
       setTestResult({ ok: false, message: err.message ?? 'Failed to create project' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ------------------------------------------------------------------
+  // Finish (demo) — create demo project directly, skip steps 2 & 3
+  // ------------------------------------------------------------------
+  const handleDemoFinish = async () => {
+    setSaving(true);
+    try {
+      const input: CreateProjectInput = {
+        name: 'Pilbara Resources \u2014 Demo',
+        sector: 'mining' as Sector,
+        revenueAUD: 500_000_000,
+        totalFTE: 2500,
+        dataEngineers: 12,
+        avgSalaryAUD: 185_000,
+        avgFTESalaryAUD: 125_000,
+        database: {
+          type: 'demo',
+          host: 'demo',
+          database: 'pilbara_resources',
+          ssl: false,
+          schemas: ['operations', 'finance', 'environmental', 'hr'],
+        },
+      };
+      const project = await createProject(input);
+      navigate(`/projects/${project.id}/edit`);
+    } catch (err: any) {
+      setTestResult({ ok: false, message: err.message ?? 'Failed to create demo project' });
     } finally {
       setSaving(false);
     }
@@ -258,17 +320,22 @@ export function ConnectionWizard({ onClose }: ConnectionWizardProps) {
         {step === 1 && (
           <div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
-              {DB_OPTIONS.map((opt) => (
+              {DB_OPTIONS.map((opt) => {
+                const isDemo = opt.type === 'demo';
+                const isSelected = dbType === opt.type;
+                return (
                 <div
                   key={opt.type}
                   onClick={() => setDbType(opt.type)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 14,
                     padding: '16px 18px', borderRadius: 8, cursor: 'pointer',
-                    background: dbType === opt.type ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.03)',
-                    border: dbType === opt.type
+                    background: isSelected ? 'rgba(16,185,129,0.08)' : isDemo ? 'rgba(16,185,129,0.03)' : 'rgba(255,255,255,0.03)',
+                    border: isSelected
                       ? '1px solid rgba(16,185,129,0.3)'
-                      : '1px solid rgba(255,255,255,0.06)',
+                      : isDemo
+                        ? '1px solid rgba(16,185,129,0.15)'
+                        : '1px solid rgba(255,255,255,0.06)',
                     transition: 'all 0.15s',
                   }}
                 >
@@ -276,24 +343,39 @@ export function ConnectionWizard({ onClose }: ConnectionWizardProps) {
                     width: 40, height: 40, borderRadius: 8, flexShrink: 0,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 18,
-                    background: dbType === opt.type ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.06)',
-                    color: dbType === opt.type ? '#10B981' : '#6B7280',
+                    background: isSelected ? 'rgba(16,185,129,0.15)' : isDemo ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.06)',
+                    color: isSelected ? '#10B981' : isDemo ? '#34D399' : '#6B7280',
                   }}>
                     {opt.icon}
                   </div>
-                  <div>
+                  <div style={{ flex: 1 }}>
                     <div style={{
-                      color: dbType === opt.type ? '#10B981' : '#E5E7EB',
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      color: isSelected ? '#10B981' : '#E5E7EB',
                       fontSize: 14, fontWeight: 600,
                     }}>
                       {opt.label}
+                      {isDemo && (
+                        <span style={{
+                          background: 'rgba(16,185,129,0.15)',
+                          color: '#34D399',
+                          fontSize: 10,
+                          fontWeight: 700,
+                          padding: '2px 8px',
+                          borderRadius: 4,
+                          letterSpacing: '0.02em',
+                        }}>
+                          {'\u26A1'} No setup required
+                        </span>
+                      )}
                     </div>
                     <div style={{ color: '#6B7280', fontSize: 12, marginTop: 2 }}>
                       {opt.description}
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
@@ -306,8 +388,11 @@ export function ConnectionWizard({ onClose }: ConnectionWizardProps) {
                 Cancel
               </button>
               <button
-                onClick={() => { if (dbType) setStep(2); }}
-                disabled={!dbType}
+                onClick={() => {
+                  if (dbType === 'demo') { handleDemoFinish(); }
+                  else if (dbType) { setStep(2); }
+                }}
+                disabled={!dbType || (dbType === 'demo' && saving)}
                 style={{
                   background: dbType ? 'linear-gradient(135deg, #10B981, #059669)' : 'rgba(255,255,255,0.06)',
                   color: dbType ? 'white' : '#6B7280',
@@ -318,7 +403,9 @@ export function ConnectionWizard({ onClose }: ConnectionWizardProps) {
                 onMouseEnter={(e) => { if (dbType) e.currentTarget.style.opacity = '0.9'; }}
                 onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
               >
-                Next {'\u2192'}
+                {dbType === 'demo'
+                  ? (saving ? 'Creating\u2026' : '\u26A1 Start Demo Scan')
+                  : `Next ${'\u2192'}`}
               </button>
             </div>
           </div>
@@ -330,23 +417,30 @@ export function ConnectionWizard({ onClose }: ConnectionWizardProps) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
               <div>
                 <label style={labelStyle}>Host</label>
-                <input style={inputStyle} value={host} onChange={(e) => setHost(e.target.value)} {...inputFocusHandlers} />
+                <input style={{ ...inputStyle, ...(fieldErrors.host ? { borderColor: '#EF4444' } : {}) }} value={host} onChange={(e) => setHost(e.target.value)} {...inputFocusHandlers} />
+                {fieldErrors.host && <div style={{ color: '#FCA5A5', fontSize: 11, marginTop: 4 }}>{fieldErrors.host}</div>}
               </div>
               <div>
                 <label style={labelStyle}>Port</label>
-                <input style={inputStyle} type="number" value={port} onChange={(e) => setPort(+e.target.value)} {...inputFocusHandlers} />
+                <input style={{ ...inputStyle, ...(fieldErrors.port ? { borderColor: '#EF4444' } : {}) }} type="number" value={port} onChange={(e) => {
+                  const val = parseInt(e.target.value, 10);
+                  if (!isNaN(val) && val >= 1 && val <= 65535) setPort(val);
+                }} {...inputFocusHandlers} />
+                {fieldErrors.port && <div style={{ color: '#FCA5A5', fontSize: 11, marginTop: 4 }}>{fieldErrors.port}</div>}
               </div>
             </div>
 
             <div style={{ marginBottom: 12 }}>
               <label style={labelStyle}>Database Name</label>
-              <input style={inputStyle} value={dbName} onChange={(e) => setDbName(e.target.value)} placeholder="mydb" {...inputFocusHandlers} />
+              <input style={{ ...inputStyle, ...(fieldErrors.database ? { borderColor: '#EF4444' } : {}) }} value={dbName} onChange={(e) => setDbName(e.target.value)} placeholder="mydb" {...inputFocusHandlers} />
+              {fieldErrors.database && <div style={{ color: '#FCA5A5', fontSize: 11, marginTop: 4 }}>{fieldErrors.database}</div>}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
               <div>
                 <label style={labelStyle}>Username</label>
-                <input style={inputStyle} value={username} onChange={(e) => setUsername(e.target.value)} {...inputFocusHandlers} />
+                <input style={{ ...inputStyle, ...(fieldErrors.username ? { borderColor: '#EF4444' } : {}) }} value={username} onChange={(e) => setUsername(e.target.value)} {...inputFocusHandlers} />
+                {fieldErrors.username && <div style={{ color: '#FCA5A5', fontSize: 11, marginTop: 4 }}>{fieldErrors.username}</div>}
               </div>
               <div>
                 <label style={labelStyle}>Password</label>
