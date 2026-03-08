@@ -77,9 +77,8 @@ Config → Adapter.connect() → Adapter.extractSchema()
 1. **Shannon Entropy** — Measures disorder across the 7 properties
 2. **Base Cost Model** — Revenue-scaled cost allocation across 5 categories
 3. **Findings Adjustment** — Applies scanner-detected issues to cost model
-4. **Leontief Amplification** — Models cross-category cost cascading
-5. **Monte Carlo** — Uncertainty estimation with minimax bounds
-6. **5-Year Projection** — Do-nothing vs canonical architecture comparison
+4. **Leontief Amplification** — Models cross-category cost cascading via Neumann series inversion
+5. **5-Year Projection** — Do-nothing vs canonical architecture comparison
 
 ## CLI Options
 
