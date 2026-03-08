@@ -199,6 +199,11 @@ export function Landing() {
               </div>
             ))}
           </div>
+
+          <p data-reveal className="reveal-up mt-10 text-center text-xs text-gray-500 max-w-lg mx-auto">
+            Powered by information theory, economic input-output modelling,
+            and statistical simulation.
+          </p>
         </div>
       </Section>
 
