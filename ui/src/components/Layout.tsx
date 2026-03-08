@@ -1,6 +1,7 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { fetchScan } from '../api/client';
+import { DisplayModeToggle } from './DisplayModeToggle';
 
 const NAV_ITEMS = [
   { id: '/', label: 'Dashboard', icon: '⬡' },
@@ -200,6 +201,11 @@ export function Layout({ children }: { children: ReactNode }) {
 
           {/* Spacer pushes settings to bottom */}
           <div style={{ flex: 1 }} />
+
+          {/* Display Mode Toggle */}
+          <div style={{ padding: '0 4px', marginBottom: 4 }}>
+            <DisplayModeToggle collapsed={collapsed} />
+          </div>
 
           {/* Settings */}
           <NavButton
