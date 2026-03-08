@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { fetchProject, createProject, updateProject, uploadCsvFiles, uploadPipelineFiles, triggerScan, type CreateProjectInput, type Sector } from '../api/client';
 import { PageHeader, PrimaryButton, SecondaryButton } from '../components/Shared';
+import { useDisplayMode } from '../config/DisplayModeContext';
 
 const SECTORS: { value: Sector; label: string }[] = [
   { value: 'mining', label: 'Mining & Resources' },
@@ -42,6 +43,7 @@ const ACCEPTED_EXTENSIONS: Record<DataSource, string> = {
 export function ProjectForm() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { label } = useDisplayMode();
   const isEdit = Boolean(id);
 
   const [form, setForm] = useState({
@@ -252,7 +254,7 @@ export function ProjectForm() {
           <FormField label="AI/ML Budget (AUD)">
             <input style={inputStyle} type="number" value={form.aiBudgetAUD} onChange={(e) => update('aiBudgetAUD', +e.target.value)} />
           </FormField>
-          <FormField label="Canonical Investment (AUD)">
+          <FormField label={`${label('canonicalInvestment')} (AUD)`}>
             <input style={inputStyle} type="number" value={form.canonicalInvestmentAUD} onChange={(e) => update('canonicalInvestmentAUD', +e.target.value)} />
           </FormField>
         </div>

@@ -1,4 +1,5 @@
-import { formatCost, COST_CATEGORY_COLORS, COST_CATEGORY_LABELS, formatCostFull } from '../utils';
+import { formatCost, COST_CATEGORY_COLORS, formatCostFull } from '../utils';
+import { useDisplayMode } from '../config/DisplayModeContext';
 
 interface CostCategory {
   key: string;
@@ -6,6 +7,7 @@ interface CostCategory {
 }
 
 export function CostBreakdownChart({ categories }: { categories: CostCategory[] }) {
+  const { costCategoryLabels } = useDisplayMode();
   if (categories.length === 0) return null;
   const max = Math.max(...categories.map((c) => c.amount));
   const total = categories.reduce((s, c) => s + c.amount, 0);
@@ -15,7 +17,7 @@ export function CostBreakdownChart({ categories }: { categories: CostCategory[] 
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {categories.map((cat, i) => {
         const color = COST_CATEGORY_COLORS[cat.key] ?? defaultColors[i % defaultColors.length];
-        const label = COST_CATEGORY_LABELS[cat.key] ?? cat.key;
+        const label = costCategoryLabels[cat.key] ?? cat.key;
         return (
           <div key={cat.key}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>

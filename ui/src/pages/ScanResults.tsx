@@ -13,7 +13,7 @@ import { PropertyRadar } from '../components/PropertyRadar';
 import { SeverityDoughnut } from '../components/SeverityDoughnut';
 import { CostBreakdownChart } from '../components/CostBreakdownChart';
 import {
-  formatCost, formatCostFull, PROPERTY_NAMES, COST_CATEGORY_LABELS,
+  formatCost, formatCostFull, PROPERTY_NAMES,
   scoreColor, type SeverityKey,
 } from '../utils';
 import { ScanDetailSkeleton } from '../components/LoadingSkeleton';

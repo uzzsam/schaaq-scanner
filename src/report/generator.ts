@@ -17,6 +17,44 @@ import type { Finding, Strength } from '../checks/types';
 import type { ScoredFindings } from '../scoring/severity-scorer';
 
 // =============================================================================
+// Display Mode — labels for technical vs executive audiences
+// =============================================================================
+
+export type ReportDisplayMode = 'technical' | 'executive';
+
+const REPORT_LABELS = {
+  annualDisorderCost:   { technical: 'Annual Data Disorder Cost',       executive: 'Annual Data Cost Impact' },
+  baseCost:             { technical: 'Base Cost (Pre-Amplification)',    executive: 'Direct Costs Only' },
+  amplifiedUnit:        { technical: 'per year (amplified)',             executive: 'per year (total estimated)' },
+  overallMaturity:      { technical: 'Overall Maturity',                executive: 'Overall Maturity' },
+  canonicalInvestment:  { technical: 'Canonical Investment',            executive: 'Recommended Investment' },
+  potentialSaving:      { technical: 'Potential Annual Saving',         executive: 'Potential Annual Saving' },
+  withCanonical:        { technical: 'with canonical architecture',     executive: 'with recommended architecture' },
+  fiveYearSaving:       { technical: '5-Year Cumulative Saving',        executive: '5-Year Cumulative Saving' },
+  propertyMaturity:     { technical: 'Property Maturity Assessment',    executive: 'Architecture Health Assessment' },
+  doNothing:            { technical: 'Do Nothing',                      executive: 'Current Trajectory' },
+  withCanonicalArch:    { technical: 'With Canonical Architecture',     executive: 'With Recommended Architecture' },
+  firefighting:         { technical: 'Firefighting',                    executive: 'Unplanned Rework' },
+  dataQuality:          { technical: 'Data Quality',                    executive: 'Data Quality Issues' },
+  integration:          { technical: 'Integration',                     executive: 'Integration Failures' },
+  productivity:         { technical: 'Productivity',                    executive: 'Lost Productivity' },
+  regulatory:           { technical: 'Regulatory',                      executive: 'Compliance Risk' },
+} as const;
+
+function resolveReportLabels(mode: ReportDisplayMode): Record<string, string> {
+  const labels: Record<string, string> = {};
+  for (const [key, pair] of Object.entries(REPORT_LABELS)) {
+    labels[key] = pair[mode];
+  }
+  return labels;
+}
+
+function resolveCategoryLabel(key: string, mode: ReportDisplayMode): string {
+  const entry = REPORT_LABELS[key as keyof typeof REPORT_LABELS];
+  return entry ? entry[mode] : key;
+}
+
+// =============================================================================
 // Report Data — the shape passed to the Handlebars template
 // =============================================================================
 
@@ -110,6 +148,9 @@ export interface ReportData {
   majorCount: number;
   minorCount: number;
   infoCount: number;
+
+  // Display mode labels (resolved for current mode)
+  l: Record<string, string>;
 }
 
 // =============================================================================
@@ -152,15 +193,18 @@ export function buildReportData(
     reportTitle?: string;
     reportSubtitle?: string;
     databaseLabel?: string;
+    displayMode?: ReportDisplayMode;
   },
 ): ReportData {
+  const displayMode = options?.displayMode ?? 'executive';
+  const l = resolveReportLabels(displayMode);
   const costTotal = sumCostVector(result.finalCosts);
 
   // Cost categories breakdown
   const costCategories = Object.entries(CATEGORY_META).map(([key, meta]) => {
     const value = result.finalCosts[key as keyof CostVector];
     return {
-      name: meta.label,
+      name: resolveCategoryLabel(key, displayMode),
       value,
       percentage: costTotal > 0 ? (value / costTotal) * 100 : 0,
       color: meta.color,
@@ -267,6 +311,8 @@ export function buildReportData(
     majorCount,
     minorCount,
     infoCount,
+
+    l,
   };
 }
 
@@ -720,19 +766,19 @@ h3 { font-size: 16px; font-weight: 600; color: var(--c-primary); margin-bottom: 
   <h2>Executive Summary</h2>
   <div class="metrics">
     <div class="metric-card highlight">
-      <div class="label">Annual Data Disorder Cost</div>
+      <div class="label">{{l.annualDisorderCost}}</div>
       <div class="value">{{currency finalTotal}}</div>
-      <div class="unit">per year (amplified)</div>
+      <div class="unit">{{l.amplifiedUnit}}</div>
     </div>
     <div class="metric-card">
-      <div class="label">Base Cost (Pre-Amplification)</div>
+      <div class="label">{{l.baseCost}}</div>
       <div class="value">{{currency baseTotal}}</div>
       <div class="unit">direct costs only</div>
     </div>
     <div class="metric-card success">
-      <div class="label">Potential Annual Saving</div>
+      <div class="label">{{l.potentialSaving}}</div>
       <div class="value">{{currency annualSaving}}</div>
-      <div class="unit">with canonical architecture</div>
+      <div class="unit">{{l.withCanonical}}</div>
     </div>
     <div class="metric-card">
       <div class="label">Payback Period</div>
@@ -742,15 +788,15 @@ h3 { font-size: 16px; font-weight: 600; color: var(--c-primary); margin-bottom: 
   </div>
   <div class="metrics">
     <div class="metric-card">
-      <div class="label">Overall Maturity</div>
+      <div class="label">{{l.overallMaturity}}</div>
       <div class="value">{{fixed1 overallMaturity}}<span style="font-size:14px">/4</span></div>
     </div>
     <div class="metric-card">
-      <div class="label">Canonical Investment</div>
+      <div class="label">{{l.canonicalInvestment}}</div>
       <div class="value">{{currency canonicalInvestment}}</div>
     </div>
     <div class="metric-card">
-      <div class="label">5-Year Cumulative Saving</div>
+      <div class="label">{{l.fiveYearSaving}}</div>
       <div class="value">{{currency fiveYearCumulativeSaving}}</div>
     </div>
     <div class="metric-card">
@@ -808,7 +854,7 @@ h3 { font-size: 16px; font-weight: 600; color: var(--c-primary); margin-bottom: 
 
 <!-- Property Maturity Assessment -->
 <section class="section-page-break">
-  <h2>Property Maturity Assessment</h2>
+  <h2>{{l.propertyMaturity}}</h2>
   <div class="radar-layout">
     <div class="radar-chart-wrap">
       {{{radarChart propertyScores}}}
@@ -835,8 +881,8 @@ h3 { font-size: 16px; font-weight: 600; color: var(--c-primary); margin-bottom: 
 <section class="section-page-break">
   <h2>Five-Year Cost Projection</h2>
   <div class="legend">
-    <div class="legend-item"><div class="legend-dot" style="background:var(--c-accent)"></div>Do Nothing</div>
-    <div class="legend-item"><div class="legend-dot" style="background:var(--c-success)"></div>With Canonical Architecture</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--c-accent)"></div>{{l.doNothing}}</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--c-success)"></div>{{l.withCanonicalArch}}</div>
   </div>
   {{#each fiveYearProjection}}
   <div class="dual-bar-row">

@@ -46,11 +46,21 @@ export const LABELS = {
   productivity:          { technical: 'Productivity Drain',         executive: 'Lost Productivity' },
   regulatory:            { technical: 'Regulatory Exposure',        executive: 'Compliance Risk' },
 
-  // Report sections
+  // Report sections & headings
   propertyMaturity:      { technical: 'Property Maturity Assessment', executive: 'Architecture Health Assessment' },
+  propertyHealth:        { technical: 'Property Health',             executive: 'Architecture Health' },
   costBreakdown:         { technical: 'Cost Breakdown',             executive: 'Cost Breakdown' },
   canonicalInvestment:   { technical: 'Canonical Investment',       executive: 'Recommended Investment' },
   paybackPeriod:         { technical: 'Payback Period',             executive: 'Payback Period' },
+
+  // Projection / comparison
+  annualDisorderCost:    { technical: 'Annual Data Disorder Cost',  executive: 'Annual Data Cost Impact' },
+  doNothing:             { technical: 'Do Nothing',                 executive: 'Current Trajectory' },
+  withCanonical:         { technical: 'With Canonical Architecture', executive: 'With Recommended Architecture' },
+  potentialSaving:       { technical: 'Potential Annual Saving',    executive: 'Potential Annual Saving' },
+  fiveYearSaving:        { technical: '5-Year Cumulative Saving',   executive: '5-Year Cumulative Saving' },
+  estimatedAnnualCost:   { technical: 'Estimated Annual Cost',      executive: 'Estimated Annual Cost' },
+  architectureHealth:    { technical: 'Architecture Health',        executive: 'Architecture Health' },
 } as const satisfies Record<string, LabelPair>;
 
 export type LabelKey = keyof typeof LABELS;
