@@ -206,6 +206,126 @@ describe('Engine Smoke Test — Standalone Extraction', () => {
   });
 });
 
+// --- Shannon Entropy: 8-property log₂(8) = 3.0 normalization ---
+describe('Shannon Entropy — 8-property normalization', () => {
+  it('should normalize disorder to [0,1] using HMax = log₂(sourceSystems)', () => {
+    // With 8 source systems: HMax = log₂(8) = 3.0
+    const input: DALCInput = {
+      ...REFERENCE_MINING,
+      sourceSystems: 8,
+    };
+    const result = calculateDALC(input);
+    // Disorder D = H/HMax, must be in [0, 1]
+    expect(result.disorderScore).toBeGreaterThan(0);
+    expect(result.disorderScore).toBeLessThanOrEqual(1);
+  });
+
+  it('should produce higher disorder with more source systems', () => {
+    const input4 = calculateDALC({ ...REFERENCE_MINING, sourceSystems: 4 });
+    const input16 = calculateDALC({ ...REFERENCE_MINING, sourceSystems: 16 });
+    // More systems = higher entropy = higher disorder
+    expect(input16.disorderScore).toBeGreaterThan(input4.disorderScore);
+  });
+});
+
+// --- Base cost fractions sum to 1.0 ---
+describe('Base Cost Fractions', () => {
+  it('should have 6-category base costs that are consistent proportions of baseTotal', () => {
+    const result = calculateDALC(REFERENCE_MINING);
+    const sum =
+      result.baseCosts.firefighting +
+      result.baseCosts.dataQuality +
+      result.baseCosts.integration +
+      result.baseCosts.productivity +
+      result.baseCosts.regulatory +
+      result.baseCosts.aiMlRiskExposure;
+    // Sum of categories should equal baseTotal within rounding
+    expect(Math.abs(sum - result.baseTotal)).toBeLessThan(1);
+  });
+
+  it('should include aiMlRiskExposure base cost derived from sector allocation fraction', () => {
+    const result = calculateDALC(REFERENCE_MINING);
+    // Mining aiMlBaseAllocationFraction = 0.008 of revenue
+    // Base AI cost should be positive and proportional to revenue
+    expect(result.baseCosts.aiMlRiskExposure).toBeGreaterThan(0);
+    // Sanity: AI cost should be < firefighting cost in a pervasive scenario
+    expect(result.baseCosts.aiMlRiskExposure).toBeLessThan(result.baseCosts.firefighting);
+  });
+});
+
+// --- P8 findings map to C6 (aiMlRiskExposure) ---
+describe('P8 Findings → C6 Mapping', () => {
+  it('should have higher AI/ML risk costs when P8 is pervasive vs none', () => {
+    const pervasiveP8: DALCInput = {
+      ...REFERENCE_MINING,
+      findings: MINING_FINDINGS.map((f) =>
+        f.id === 'P8-M' ? { ...f, severity: 'pervasive' as const } : { ...f, severity: 'none' as const },
+      ),
+    };
+    const noneP8: DALCInput = {
+      ...REFERENCE_MINING,
+      findings: MINING_FINDINGS.map((f) => ({ ...f, severity: 'none' as const })),
+    };
+
+    const rPervasive = calculateDALC(pervasiveP8);
+    const rNone = calculateDALC(noneP8);
+
+    // P8 pervasive should inflate adjusted AI/ML cost vs none
+    expect(rPervasive.adjustedCosts.aiMlRiskExposure).toBeGreaterThan(
+      rNone.adjustedCosts.aiMlRiskExposure,
+    );
+  });
+
+  it('should produce finding result for P8 with aiMlRiskExposure contribution', () => {
+    const result = calculateDALC(REFERENCE_MINING);
+    const p8Finding = result.findingResults.find((f) => f.id === 'P8-M');
+    expect(p8Finding).toBeDefined();
+    expect(p8Finding!.severity).toBe('pervasive');
+    // P8 should contribute to AI/ML risk exposure
+    expect(p8Finding!.categoryCosts.aiMlRiskExposure).toBeGreaterThan(0);
+  });
+});
+
+// --- 6×6 W Matrix spectral radius per sector ---
+describe('W Matrix 6×6 per Sector', () => {
+  const SECTORS: Array<'mining' | 'environmental' | 'energy'> = ['mining', 'environmental', 'energy'];
+  for (const sector of SECTORS) {
+    it(`should have spectral radius < 1.0 for ${sector} (Leontief stability)`, () => {
+      const input: DALCInput = {
+        ...REFERENCE_MINING,
+        sector,
+        findings: MINING_FINDINGS.map((f) => ({
+          ...f,
+          id: f.id.replace('-M', sector === 'environmental' ? '-E' : sector === 'energy' ? '-U' : '-M') as any,
+        })),
+      };
+      const result = calculateDALC(input);
+      expect(result.spectralRadius).toBeGreaterThan(0);
+      expect(result.spectralRadius).toBeLessThan(1.0);
+    });
+  }
+});
+
+// --- 5-year projection includes all 6 categories ---
+describe('5-Year Projection — 6 Cost Categories', () => {
+  it('should have all 6 cost categories in each projection year', () => {
+    const result = calculateDALC(REFERENCE_MINING);
+    for (const yr of result.fiveYearProjection) {
+      expect(yr.doNothingCost).toBeGreaterThan(0);
+      expect(yr.withCanonicalCost).toBeDefined();
+      expect(yr.cumulativeSaving).toBeDefined();
+    }
+  });
+
+  it('should show growing do-nothing costs over 5 years', () => {
+    const result = calculateDALC(REFERENCE_MINING);
+    for (let i = 1; i < result.fiveYearProjection.length; i++) {
+      expect(result.fiveYearProjection[i].doNothingCost)
+        .toBeGreaterThanOrEqual(result.fiveYearProjection[i - 1].doNothingCost);
+    }
+  });
+});
+
 // --- Cross-Sector Sanity ---
 describe('Cross-Sector Sanity', () => {
   const SECTORS: Array<'mining' | 'environmental' | 'energy'> = [

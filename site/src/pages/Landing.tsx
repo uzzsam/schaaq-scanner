@@ -4,9 +4,9 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 /* ─── Radar chart SVG for report preview ─── */
 function RadarChart() {
-  // 7-point polygon (DAMA properties) — data values as fractions of radius
+  // 8-point polygon (DAMA properties) — data values as fractions of radius
   const cx = 100, cy = 100, r = 70;
-  const values = [0.85, 0.6, 0.45, 0.7, 0.9, 0.55, 0.75];
+  const values = [0.85, 0.6, 0.45, 0.7, 0.9, 0.55, 0.75, 0.35];
   const gridLevels = [0.25, 0.5, 0.75, 1];
   const n = values.length;
 
@@ -119,8 +119,8 @@ export function Landing() {
           </h1>
 
           <p className="mt-6 text-lg sm:text-xl text-gray-400 max-w-2xl mx-auto leading-relaxed">
-            Schaaq Scanner connects to your database, runs 15 automated checks
-            across 7 DAMA-aligned properties, and calculates the annual cost of
+            Schaaq Scanner connects to your database, runs 18 automated checks
+            across 8 DAMA-aligned properties, and calculates the annual cost of
             data architecture disorder&nbsp;&mdash; with a remediation roadmap.
           </p>
 
@@ -202,7 +202,7 @@ export function Landing() {
 
           <p data-reveal className="reveal-up mt-10 text-center text-xs text-gray-500 max-w-lg mx-auto">
             Powered by information theory, economic input-output modelling,
-            and statistical simulation.
+            statistical simulation, and AI governance frameworks.
           </p>
         </div>
       </Section>
@@ -215,10 +215,10 @@ export function Landing() {
               What we check
             </p>
             <h2 className="font-display text-3xl sm:text-4xl font-bold text-white">
-              7 DAMA-aligned data properties
+              8 DAMA-aligned data properties
             </h2>
             <p className="mt-4 text-gray-400 max-w-xl mx-auto">
-              Each scan evaluates your database across seven fundamental properties
+              Each scan evaluates your database across eight fundamental properties
               of data architecture quality.
             </p>
           </div>
@@ -240,6 +240,29 @@ export function Landing() {
                 <p className="text-xs text-gray-400 leading-relaxed">{p.question}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </Section>
+
+      {/* ── SECTION 4b: AI READINESS CALLOUT ─────────────────────────── */}
+      <Section className="pb-20 sm:pb-28">
+        <div data-reveal className="reveal-up mx-auto max-w-4xl px-6">
+          <div className="p-8 sm:p-10 rounded-2xl border border-purple-500/20 bg-gradient-to-br from-purple-500/[0.06] to-schaaq-500/[0.04] relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-[300px] h-[200px] bg-purple-500/[0.05] rounded-full blur-[80px] pointer-events-none" />
+            <div className="relative">
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-3xl">{'\u{1F916}'}</span>
+                <div>
+                  <h3 className="font-display text-xl font-bold text-white">AI Readiness Assessment</h3>
+                  <p className="text-xs text-purple-300/70">New in v1.0 — Property P8</p>
+                </div>
+              </div>
+              <p className="text-sm text-gray-400 leading-relaxed max-w-2xl">
+                Three dedicated checks evaluate whether your data architecture can support safe, compliant AI/ML workloads:
+                lineage completeness for model auditability, bias-relevant attribute documentation, and reproducibility support.
+                Evidence-backed by EU AI Act Articles 10–13, NIST AI RMF, and ISO/IEC 5259.
+              </p>
+            </div>
           </div>
         </div>
       </Section>
@@ -419,7 +442,7 @@ const steps = [
     num: '02',
     title: 'Scan',
     description:
-      '15 automated checks evaluate naming, types, relationships, governance, null rates, audit trails, and more.',
+      '18 automated checks evaluate naming, types, relationships, governance, null rates, audit trails, AI readiness, and more.',
   },
   {
     num: '03',
@@ -437,6 +460,7 @@ const properties = [
   { id: 5, name: 'Schema Governance', question: 'Do tables have primary keys and naming conventions?', icon: '\u{1F3DB}\uFE0F' },
   { id: 6, name: 'Quality Measurement', question: "What's the null rate, index coverage, and data health?", icon: '\u{1F4CA}' },
   { id: 7, name: 'Regulatory Traceability', question: 'Do you have audit columns and referential integrity?', icon: '\u{1F4DC}' },
+  { id: 8, name: 'AI Readiness', question: 'Is your data architecture ready for safe, compliant, auditable AI/ML workloads?', icon: '\u{1F916}' },
 ];
 
 const personas = [

@@ -1,6 +1,6 @@
 # DALC Scanner — Data Architecture Loss Calculator (Phase 2)
 
-A standalone diagnostic tool that analyses your database schema against the 7-property data architecture framework and quantifies the annual financial cost of structural gaps.
+A standalone diagnostic tool that analyses your database schema against the 8-property data architecture framework and quantifies the annual financial cost of structural gaps.
 
 **Engine version:** v4.0.0 (Archimedes) | **Scanner version:** 0.1.0
 
@@ -43,7 +43,7 @@ npx tsx src/cli.ts --dry-run --verbose --output ./output
 src/
   engine/       Zero-dependency DALC v4 calculation engine
   adapters/     Database-specific schema extractors (PostgreSQL)
-  checks/       15 checks across 7 properties (pure functions)
+  checks/       18 checks across 8 properties (pure functions)
   scoring/      Severity scoring + mapper to engine input
   report/       Self-contained HTML report generator (Handlebars)
   mock/         Mock schema factory for dry-run/testing
@@ -60,7 +60,7 @@ Config → Adapter.connect() → Adapter.extractSchema()
   → Write HTML/JSON report
 ```
 
-### The 7 Properties
+### The 8 Properties
 
 | # | Property | What It Measures |
 |---|----------|-----------------|
@@ -71,14 +71,25 @@ Config → Adapter.connect() → Adapter.extractSchema()
 | P5 | Schema Governance | Naming conventions, PKs, documentation |
 | P6 | Quality Measurement | Null rates, orphaned tables, index coverage |
 | P7 | Regulatory Traceability | Audit columns, constraint coverage |
+| P8 | AI Readiness | ML lineage completeness, bias attribute documentation, reproducibility |
 
 ### Engine Layers
 
-1. **Shannon Entropy** — Measures disorder across the 7 properties
-2. **Base Cost Model** — Revenue-scaled cost allocation across 5 categories
+1. **Shannon Entropy** — Measures disorder across the 8 properties
+2. **Base Cost Model** — Revenue-scaled cost allocation across 6 categories (firefighting, data quality, integration, productivity, regulatory, AI/ML risk exposure)
 3. **Findings Adjustment** — Applies scanner-detected issues to cost model
-4. **Leontief Amplification** — Models cross-category cost cascading via Neumann series inversion
+4. **Leontief Amplification** — Models cross-category cost cascading via 6x6 W matrix and Neumann series inversion (12 terms)
 5. **5-Year Projection** — Do-nothing vs canonical architecture comparison
+
+### P8: AI Readiness
+
+Property 8 evaluates whether your data architecture is ready for safe, compliant, auditable AI/ML workloads. Three checks:
+
+- **p8-ai-lineage-completeness** — Checks ML-adjacent tables (feature stores, training data, model inputs) for audit columns and source lineage metadata. EU AI Act Article 12 requires automatic event recording across the AI system lifetime.
+- **p8-ai-bias-attribute-documentation** — Checks whether columns containing demographic or proxy demographic data (gender, race, age, income, postcode) are documented and value-controlled. EU AI Act Article 10 requires training data to be "sufficiently representative".
+- **p8-ai-reproducibility** — Assesses temporal query support, versioning, and deterministic ordering for reproducible AI/ML training pipelines. EU AI Act Articles 11-12 require technical documentation and record-keeping.
+
+Evidence base: EU AI Act, NIST AI RMF, ISO/IEC 5259, and 16 named incidents totalling >$5B in quantified damage (Meta $1.4B Texas settlement, Clearview AI fines, FTC Rite Aid, SafeRent, iTutorGroup EEOC).
 
 ## CLI Options
 
@@ -124,7 +135,7 @@ npm test                        # Run all tests (207+ tests)
 npm run test:smoke              # Engine smoke tests
 npm run test:adapter            # PostgreSQL adapter unit tests
 npm run test:adapter:integration # Adapter integration (Testcontainers)
-npm run test:checks             # All 15 checks
+npm run test:checks             # All 18 checks
 npm run test:scoring            # Severity scorer + mapper
 npm run test:config             # Config parser
 npm run test:report             # Report generator
@@ -139,9 +150,9 @@ npm run scan:dry                # Quick dry-run
 
 | Suite | Tests | Description |
 |-------|-------|-------------|
-| Engine Smoke | 31 | Core DALC v4 calculation engine |
+| Engine Smoke | 42 | Core DALC v4 calculation engine |
 | PostgreSQL Adapter | 73 | Schema extraction + Testcontainers |
-| Checks | ~30 | 15 checks across 7 properties |
+| Checks | ~61 | 18 checks across 8 properties |
 | Scoring | ~15 | Severity scorer + engine mapper |
 | Config | 19 | YAML config parser + validation |
 | Report | 17 | HTML report generator |
@@ -156,7 +167,7 @@ npm run scan:dry                # Quick dry-run
 dalc-scanner/
   src/
     adapters/         Database adapters (PostgreSQL)
-    checks/           15 scanner checks (P1-P7)
+    checks/           18 scanner checks (P1-P8)
     engine/           DALC v4 engine (zero-dep)
     mock/             Mock schema factory
     report/           HTML report generator
