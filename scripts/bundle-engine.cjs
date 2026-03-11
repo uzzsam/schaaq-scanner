@@ -25,7 +25,7 @@ for (const file of ENGINE_FILES) {
     minify: true,
     minifyWhitespace: true,
     minifySyntax: true,
-    minifyIdentifiers: true,
+    minifyIdentifiers: false,
     target: 'node20',
     format: 'cjs',
     keepNames: false,
