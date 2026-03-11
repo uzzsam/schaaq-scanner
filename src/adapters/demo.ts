@@ -3,7 +3,7 @@
 // =============================================================================
 //
 // Returns a realistic "Pilbara Resources" mining company schema with
-// intentional data-quality issues pre-baked across all 7 DALC properties:
+// intentional data-quality issues pre-baked across all 8 DALC properties:
 //
 //   P1  Semantic Identity     — duplicate / near-duplicate column names
 //   P2  Type Inconsistency    — same column name, different types across tables
@@ -12,6 +12,7 @@
 //   P5  Naming Violations     — mixed camelCase / snake_case / PascalCase
 //   P6  Anomaly Detection     — high null rates, z-score outliers, no indexes
 //   P7  Missing Constraints   — tables with no PK, no audit columns
+//   P8  AI Readiness          — ML feature store with no lineage, undocumented bias attributes
 //
 // No real database connection is needed — connect() and disconnect() are no-ops.
 // =============================================================================
@@ -121,14 +122,15 @@ function buildDemoSchema(): SchemaData {
   const oneWeekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
 
   // =========================================================================
-  // 1. Tables (8 tables across 4 schemas)
+  // 1. Tables (10 tables across 5 schemas)
   // =========================================================================
 
   const tables: TableInfo[] = [
-    // -- operations (3 tables) --
+    // -- operations (4 tables) --
     { schema: 'operations', name: 'mine_sites',        type: 'table', rowCount: 47,   sizeBytes: 32_768,  createdAt: oneWeekAgo, lastModified: now, comment: 'Active mine site locations' },
     { schema: 'operations', name: 'operational_costs',  type: 'table', rowCount: 1284, sizeBytes: 196_608, createdAt: oneWeekAgo, lastModified: now, comment: null },
     { schema: 'operations', name: 'equipment_log',      type: 'table', rowCount: 0,    sizeBytes: 8_192,   createdAt: oneWeekAgo, lastModified: now, comment: null },  // P7: 0 rows
+    { schema: 'operations', name: 'ml_feature_store',   type: 'table', rowCount: 4820, sizeBytes: 524_288, createdAt: oneWeekAgo, lastModified: now, comment: null },  // P8: no audit, no lineage
     // -- finance (2 tables) --
     { schema: 'finance',    name: 'monthly_costs',      type: 'table', rowCount: 864,  sizeBytes: 131_072, createdAt: oneWeekAgo, lastModified: now, comment: null },
     { schema: 'finance',    name: 'tblAssets',          type: 'table', rowCount: 523,  sizeBytes: 81_920,  createdAt: oneWeekAgo, lastModified: now, comment: null },  // P5: tbl prefix
@@ -137,6 +139,8 @@ function buildDemoSchema(): SchemaData {
     // -- hr (2 tables) --
     { schema: 'hr', name: 'EmployeeData',     type: 'table', rowCount: 1842, sizeBytes: 262_144, createdAt: oneWeekAgo, lastModified: now, comment: null },  // P5: PascalCase table
     { schema: 'hr', name: 'employee_records',  type: 'table', rowCount: 1842, sizeBytes: 229_376, createdAt: oneWeekAgo, lastModified: now, comment: 'Historical employee records' },
+    // -- analytics (1 table) --
+    { schema: 'analytics', name: 'prediction_outputs', type: 'table', rowCount: 12340, sizeBytes: 786_432, createdAt: oneWeekAgo, lastModified: now, comment: null },  // P8: ML outputs, no model versioning
   ];
 
   // =========================================================================
@@ -170,6 +174,14 @@ function buildDemoSchema(): SchemaData {
     col('operations', 'operational_costs', 'approved_by',     8, 'character varying(100)',    'varchar',  { maxLength: 100 }),
     col('operations', 'operational_costs', 'notes',           9, 'text',                     'text'),
     col('operations', 'operational_costs', 'created_at',     10, 'timestamp with time zone', 'timestamp_tz', { hasDefault: true }),
+
+    // ── operations.ml_feature_store  (6 cols — NO audit, NO lineage → P8) ─
+    col('operations', 'ml_feature_store', 'feature_id',              1, 'integer',                'integer',  { isNullable: false }),
+    col('operations', 'ml_feature_store', 'ore_grade_prediction',    2, 'numeric(8,4)',           'decimal',  { numericPrecision: 8, numericScale: 4 }),  // P8: ML feature, no lineage
+    col('operations', 'ml_feature_store', 'haul_distance_feature',   3, 'numeric(10,2)',          'decimal',  { numericPrecision: 10, numericScale: 2 }), // P8: ML feature, no lineage
+    col('operations', 'ml_feature_store', 'equipment_failure_score', 4, 'numeric(6,4)',           'decimal',  { numericPrecision: 6, numericScale: 4 }),  // P8: ML feature, no lineage
+    col('operations', 'ml_feature_store', 'blast_pattern_vector',    5, 'character varying(500)', 'varchar',  { maxLength: 500 }),                        // P8: ML feature, no lineage
+    col('operations', 'ml_feature_store', 'computed_at',             6, 'timestamp with time zone','timestamp_tz', { hasDefault: true }),
 
     // ── operations.equipment_log  (8 cols — NO PK, NO indexes) ────────────
     col('operations', 'equipment_log', 'equipment_id',     1, 'integer',                'integer'),                                                   // P7: no PK
@@ -229,6 +241,8 @@ function buildDemoSchema(): SchemaData {
     col('hr', 'EmployeeData', 'salary',       8, 'numeric(12,2)',         'decimal',  { numericPrecision: 12, numericScale: 2 }),
     col('hr', 'EmployeeData', 'StartDate',    9, 'date',                  'date'),                                                                     // P5: PascalCase
     col('hr', 'EmployeeData', 'is_active',   10, 'boolean',               'boolean',  { hasDefault: true, defaultValue: 'true' }),
+    col('hr', 'EmployeeData', 'indigenous_status', 11, 'character varying(20)', 'varchar', { maxLength: 20 }),                                       // P8: undocumented bias-relevant attribute
+    col('hr', 'EmployeeData', 'age_group',         12, 'character varying(10)', 'varchar', { maxLength: 10 }),                                       // P8: undocumented bias-relevant attribute
 
     // ── hr.employee_records  (10 cols — snake_case, same entity as above) ─
     col('hr', 'employee_records', 'record_id',       1, 'integer',                'integer',  { isNullable: false }),
@@ -241,6 +255,15 @@ function buildDemoSchema(): SchemaData {
     col('hr', 'employee_records', 'annual_salary',   8, 'numeric(12,2)',          'decimal',  { numericPrecision: 12, numericScale: 2 }),
     col('hr', 'employee_records', 'manager_id',      9, 'integer',                'integer'),                                                          // moderately null 0.45
     col('hr', 'employee_records', 'department_code', 10, 'character varying(10)', 'varchar',  { maxLength: 10 }),
+
+    // ── analytics.prediction_outputs  (7 cols — NO model versioning) ────
+    col('analytics', 'prediction_outputs', 'prediction_id',    1, 'integer',                  'integer',  { isNullable: false }),
+    col('analytics', 'prediction_outputs', 'model_name',       2, 'character varying(100)',    'varchar',  { maxLength: 100 }),                          // P8: no model version column
+    col('analytics', 'prediction_outputs', 'input_hash',       3, 'character varying(64)',     'varchar',  { maxLength: 64 }),
+    col('analytics', 'prediction_outputs', 'prediction_value', 4, 'numeric(12,4)',             'decimal',  { numericPrecision: 12, numericScale: 4 }),
+    col('analytics', 'prediction_outputs', 'confidence_score', 5, 'numeric(5,4)',              'decimal',  { numericPrecision: 5, numericScale: 4 }),
+    col('analytics', 'prediction_outputs', 'predicted_at',     6, 'timestamp with time zone',  'timestamp_tz', { hasDefault: true }),
+    col('analytics', 'prediction_outputs', 'site_id',          7, 'integer',                   'integer'),
   ];
 
   // =========================================================================
@@ -249,6 +272,8 @@ function buildDemoSchema(): SchemaData {
 
   const constraints: ConstraintInfo[] = [
     // Primary keys — equipment_log & EmployeeData intentionally have NONE (P5 / P7)
+    { schema: 'operations',    table: 'ml_feature_store',      name: 'ml_feature_store_pkey',      type: 'primary_key', columns: ['feature_id'], definition: null },
+    { schema: 'analytics',     table: 'prediction_outputs',    name: 'prediction_outputs_pkey',    type: 'primary_key', columns: ['prediction_id'], definition: null },
     { schema: 'operations',    table: 'mine_sites',            name: 'mine_sites_pkey',            type: 'primary_key', columns: ['site_id'],   definition: null },
     { schema: 'operations',    table: 'operational_costs',     name: 'operational_costs_pkey',     type: 'primary_key', columns: ['id'],        definition: null },
     { schema: 'finance',       table: 'monthly_costs',         name: 'monthly_costs_pkey',         type: 'primary_key', columns: ['id'],        definition: null },
@@ -275,6 +300,8 @@ function buildDemoSchema(): SchemaData {
 
   const indexes: IndexInfo[] = [
     // PK indexes
+    { schema: 'operations',    table: 'ml_feature_store',      name: 'ml_feature_store_pkey',      columns: ['feature_id'], isUnique: true, isPrimary: true, type: 'btree' },
+    { schema: 'analytics',     table: 'prediction_outputs',    name: 'prediction_outputs_pkey',    columns: ['prediction_id'], isUnique: true, isPrimary: true, type: 'btree' },
     { schema: 'operations',    table: 'mine_sites',            name: 'mine_sites_pkey',            columns: ['site_id'],   isUnique: true, isPrimary: true,  type: 'btree' },
     { schema: 'operations',    table: 'operational_costs',     name: 'operational_costs_pkey',     columns: ['id'],        isUnique: true, isPrimary: true,  type: 'btree' },
     { schema: 'finance',       table: 'monthly_costs',         name: 'monthly_costs_pkey',         columns: ['id'],        isUnique: true, isPrimary: true,  type: 'btree' },
@@ -357,6 +384,23 @@ function buildDemoSchema(): SchemaData {
     cstat('operations', 'operational_costs', 'notes',           0.45, 640,  120),
     cstat('operations', 'operational_costs', 'created_at',      0.0,  1284),
 
+    // ── operations.ml_feature_store  (P8 — ML features, no lineage) ──────
+    cstat('operations', 'ml_feature_store', 'feature_id',              0.0,  4820),
+    cstat('operations', 'ml_feature_store', 'ore_grade_prediction',    0.03, 3680),
+    cstat('operations', 'ml_feature_store', 'haul_distance_feature',   0.02, 4100),
+    cstat('operations', 'ml_feature_store', 'equipment_failure_score', 0.05, 2940),
+    cstat('operations', 'ml_feature_store', 'blast_pattern_vector',    0.08, 4200, 120),
+    cstat('operations', 'ml_feature_store', 'computed_at',             0.0,  4820),
+
+    // ── analytics.prediction_outputs  (P8 — ML outputs, no model versioning) ─
+    cstat('analytics', 'prediction_outputs', 'prediction_id',    0.0,  12340),
+    cstat('analytics', 'prediction_outputs', 'model_name',       0.0,  8,    24),   // P8: only 8 distinct model names, no version info
+    cstat('analytics', 'prediction_outputs', 'input_hash',       0.0,  11200, 64),
+    cstat('analytics', 'prediction_outputs', 'prediction_value', 0.01, 9840),
+    cstat('analytics', 'prediction_outputs', 'confidence_score', 0.02, 4200),
+    cstat('analytics', 'prediction_outputs', 'predicted_at',     0.0,  12340),
+    cstat('analytics', 'prediction_outputs', 'site_id',          0.0,  47,   4),
+
     // ── operations.equipment_log  (0 rows — all zeroed) ──────────────────
     cstat('operations', 'equipment_log', 'equipment_id',      0.0, 0, 4),
     cstat('operations', 'equipment_log', 'site_id',           0.0, 0, 4),
@@ -415,6 +459,8 @@ function buildDemoSchema(): SchemaData {
     cstat('hr', 'EmployeeData', 'salary',       0.0,  1420),
     cstat('hr', 'EmployeeData', 'StartDate',    0.0,  1580, 4),
     cstat('hr', 'EmployeeData', 'is_active',    0.0,  2,    1),
+    cstat('hr', 'EmployeeData', 'indigenous_status', 0.12, 4, 8),   // P8: undocumented bias attribute, 12% null
+    cstat('hr', 'EmployeeData', 'age_group',         0.08, 6, 6),   // P8: undocumented bias attribute
 
     // ── hr.employee_records ─────────────────────────────────────────────
     cstat('hr', 'employee_records', 'record_id',        0.0,  1842),

@@ -46,6 +46,7 @@ export const PROPERTY_NAMES: Record<number, string> = {
   5: 'Schema Governance',
   6: 'Quality Measurement',
   7: 'Regulatory Traceability',
+  8: 'AI Readiness',
 };
 
 export const COST_CATEGORY_COLORS: Record<string, string> = {
@@ -54,6 +55,7 @@ export const COST_CATEGORY_COLORS: Record<string, string> = {
   integration: '#F59E0B',
   productivity: '#06B6D4',
   regulatory: '#818CF8',
+  aiMlRiskExposure: '#A855F7',
 };
 
 export const COST_CATEGORY_LABELS: Record<string, string> = {
@@ -62,6 +64,7 @@ export const COST_CATEGORY_LABELS: Record<string, string> = {
   integration: 'Failed Integration',
   productivity: 'Productivity Drain',
   regulatory: 'Regulatory Exposure',
+  aiMlRiskExposure: 'AI/ML Risk Exposure',
 };
 
 export const SECTOR_CONFIG = {

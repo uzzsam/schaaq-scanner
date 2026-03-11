@@ -131,7 +131,7 @@ export function ScanResults() {
   const getFindingCost = (f: Finding) => findingCosts.get(f.id) ?? 0;
 
   // Property scores
-  const propertyData = [1, 2, 3, 4, 5, 6, 7].map((pNum) => {
+  const propertyData = [1, 2, 3, 4, 5, 6, 7, 8].map((pNum) => {
     const pFindings = findings.filter((f) => f.property === pNum);
     const avgSeverity = pFindings.length > 0
       ? pFindings.reduce((s, f) => s + f.raw_score, 0) / pFindings.length
@@ -231,7 +231,7 @@ export function ScanResults() {
             <MetricCard label="Estimated Annual Cost" value={formatCostFull(totalCost)} color="#F59E0B" sub="of poor data architecture" />
             <MetricCard label="Total Findings" value={scan.total_findings} color="#EF4444" sub={`${scan.critical_count} critical · ${scan.major_count} major`} />
             <MetricCard label="Tables Affected" value={`${tablesAffected} / ${scan.schema_tables ?? '?'}`} color="#818CF8" sub={`${scan.schema_tables ? Math.round(tablesAffected / scan.schema_tables * 100) : '?'}% of scanned tables`} />
-            <MetricCard label="Architecture Health" value={`${avgScore}/100`} color={scoreColor(avgScore)} sub="across 7 properties" />
+            <MetricCard label="Architecture Health" value={`${avgScore}/100`} color={scoreColor(avgScore)} sub="across 8 properties" />
           </div>
 
           {/* What's Working Well */}
@@ -361,7 +361,7 @@ export function ScanResults() {
               </select>
               <select value={propertyFilter} onChange={(e) => setPropertyFilter(e.target.value)} style={selectStyle}>
                 <option value="all">All Properties</option>
-                {[1,2,3,4,5,6,7].map((n) => <option key={n} value={String(n)}>P{n} — {PROPERTY_NAMES[n]}</option>)}
+                {[1,2,3,4,5,6,7,8].map((n) => <option key={n} value={String(n)}>P{n} — {PROPERTY_NAMES[n]}</option>)}
               </select>
               <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={selectStyle}>
                 <option value="cost">Sort: Cost ↓</option>

@@ -39,7 +39,7 @@ const REPORT_LABELS = {
   integration:          { technical: 'Integration',                     executive: 'Integration Failures' },
   productivity:         { technical: 'Productivity',                    executive: 'Lost Productivity' },
   regulatory:           { technical: 'Regulatory',                      executive: 'Compliance Risk' },
-  aiMlRiskExposure:     { technical: 'AI/ML Risk Exposure',             executive: 'AI/ML Risk Exposure' },
+  aiMlRiskExposure:     { technical: 'AI/ML Risk Exposure',             executive: 'AI Risk Costs' },
 } as const;
 
 function resolveReportLabels(mode: ReportDisplayMode): Record<string, string> {
@@ -813,6 +813,10 @@ h3 { font-size: 16px; font-weight: 600; color: var(--c-primary); margin-bottom: 
     <div class="count-badge"><div class="dot" style="background:var(--c-minor)"></div>{{minorCount}} Minor</div>
     <div class="count-badge"><div class="dot" style="background:var(--c-info)"></div>{{infoCount}} Info</div>
   </div>
+  <p style="font-size:13px;color:var(--c-text-muted);margin-top:12px;line-height:1.6">
+    Assessment covers 8 data architecture properties including AI Readiness (P8).
+    Regulatory context includes EU AI Act, Australia Privacy Act 1988, NIST AI RMF, and ISO 5259.
+  </p>
 </section>
 
 <!-- What's Working Well -->

@@ -65,7 +65,7 @@ export function ScanProperties() {
   const getFindingCost = (f: Finding) => findingCosts.get(f.id) ?? 0;
 
   // ---- Property data ----
-  const propertyData = [1, 2, 3, 4, 5, 6, 7].map((pNum) => {
+  const propertyData = [1, 2, 3, 4, 5, 6, 7, 8].map((pNum) => {
     const pFindings = findings.filter((f) => f.property === pNum);
     const avgSeverity = pFindings.length > 0
       ? pFindings.reduce((s, f) => s + f.raw_score, 0) / pFindings.length
@@ -81,7 +81,7 @@ export function ScanProperties() {
     <div>
       <PageHeader
         title="Property Health"
-        subtitle={`${avgScore}/100 average across 7 properties · ${findings.length} findings`}
+        subtitle={`${avgScore}/100 average across 8 properties · ${findings.length} findings`}
       />
 
       <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: 20, alignItems: 'start' }}>

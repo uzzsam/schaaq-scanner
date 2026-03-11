@@ -53,6 +53,13 @@ export const LABELS = {
   canonicalInvestment:   { technical: 'Canonical Investment',       executive: 'Recommended Investment' },
   paybackPeriod:         { technical: 'Payback Period',             executive: 'Payback Period' },
 
+  // P8 AI Readiness
+  aiReadiness:           { technical: 'AI Readiness',               executive: 'AI Governance Maturity' },
+  aiMlRiskExposure:      { technical: 'AI/ML Risk Exposure',        executive: 'AI Risk Costs' },
+  dataLineage:           { technical: 'Data Lineage Completeness',  executive: 'AI Data Traceability' },
+  biasDocumentation:     { technical: 'Bias-Relevant Attribute Documentation', executive: 'AI Fairness Readiness' },
+  trainingReproducibility: { technical: 'Training Data Reproducibility', executive: 'AI Audit Readiness' },
+
   // Projection / comparison
   annualDisorderCost:    { technical: 'Annual Data Disorder Cost',  executive: 'Annual Data Cost Impact' },
   doNothing:             { technical: 'Do Nothing',                 executive: 'Current Trajectory' },
@@ -83,5 +90,6 @@ export function getCostCategoryLabels(mode: DisplayMode): Record<string, string>
     integration: LABELS.integration[mode],
     productivity: LABELS.productivity[mode],
     regulatory: LABELS.regulatory[mode],
+    aiMlRiskExposure: LABELS.aiMlRiskExposure[mode],
   };
 }
