@@ -39,6 +39,7 @@ const REPORT_LABELS = {
   integration:          { technical: 'Integration',                     executive: 'Integration Failures' },
   productivity:         { technical: 'Productivity',                    executive: 'Lost Productivity' },
   regulatory:           { technical: 'Regulatory',                      executive: 'Compliance Risk' },
+  aiMlRiskExposure:     { technical: 'AI/ML Risk Exposure',             executive: 'AI/ML Risk Exposure' },
 } as const;
 
 function resolveReportLabels(mode: ReportDisplayMode): Record<string, string> {
@@ -163,6 +164,7 @@ const CATEGORY_META: Record<string, { label: string; color: string }> = {
   integration: { label: 'Integration', color: '#3498DB' },
   productivity: { label: 'Productivity', color: '#9B59B6' },
   regulatory: { label: 'Regulatory', color: '#1ABC9C' },
+  aiMlRiskExposure: { label: 'AI/ML Risk Exposure', color: '#8E44AD' },
 };
 
 const SEVERITY_COLORS: Record<string, string> = {
@@ -455,7 +457,7 @@ function registerHelpers(): void {
 // =============================================================================
 
 function sumCostVector(cv: CostVector): number {
-  return cv.firefighting + cv.dataQuality + cv.integration + cv.productivity + cv.regulatory;
+  return cv.firefighting + cv.dataQuality + cv.integration + cv.productivity + cv.regulatory + cv.aiMlRiskExposure;
 }
 
 // =============================================================================

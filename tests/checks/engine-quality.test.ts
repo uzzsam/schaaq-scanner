@@ -139,10 +139,10 @@ describe('Strengths computed alongside findings', () => {
     expect(strengths.length).toBeGreaterThan(0);
   });
 
-  it('all strengths have valid property numbers (1-7)', () => {
+  it('all strengths have valid property numbers (1-8)', () => {
     for (const s of strengths) {
       expect(s.property).toBeGreaterThanOrEqual(1);
-      expect(s.property).toBeLessThanOrEqual(7);
+      expect(s.property).toBeLessThanOrEqual(8);
     }
   });
 

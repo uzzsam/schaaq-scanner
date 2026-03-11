@@ -60,13 +60,15 @@ describe('Report Generator', () => {
       const { scored, result } = runPipeline();
       const data = buildReportData(result, scored, 'Test Corp');
 
-      expect(data.costCategories).toHaveLength(5);
+      expect(data.costCategories).toHaveLength(6);
       const names = data.costCategories.map((c) => c.name);
-      expect(names).toContain('Firefighting');
-      expect(names).toContain('Data Quality');
-      expect(names).toContain('Integration');
-      expect(names).toContain('Productivity');
-      expect(names).toContain('Regulatory');
+      // Default display mode is 'executive', so labels are executive-mode names
+      expect(names).toContain('Unplanned Rework');
+      expect(names).toContain('Data Quality Issues');
+      expect(names).toContain('Integration Failures');
+      expect(names).toContain('Lost Productivity');
+      expect(names).toContain('Compliance Risk');
+      expect(names).toContain('AI/ML Risk Exposure');
 
       // Percentages should roughly sum to 100
       const totalPct = data.costCategories.reduce((s, c) => s + c.percentage, 0);
@@ -74,11 +76,11 @@ describe('Report Generator', () => {
       expect(totalPct).toBeLessThanOrEqual(100.1);
     });
 
-    it('includes 7 property scores with bar chart data', () => {
+    it('includes 8 property scores with bar chart data', () => {
       const { scored, result } = runPipeline();
       const data = buildReportData(result, scored, 'Test Corp');
 
-      expect(data.propertyScores).toHaveLength(7);
+      expect(data.propertyScores).toHaveLength(8);
       for (const ps of data.propertyScores) {
         expect(ps.name).toBeTruthy();
         expect(ps.score).toBeGreaterThanOrEqual(0);
@@ -114,7 +116,7 @@ describe('Report Generator', () => {
       for (const f of data.findings) {
         expect(f.checkId).toBeTruthy();
         expect(f.property).toBeGreaterThanOrEqual(1);
-        expect(f.property).toBeLessThanOrEqual(7);
+        expect(f.property).toBeLessThanOrEqual(8);
         expect(['critical', 'major', 'minor', 'info']).toContain(f.severity);
         expect(f.severityColor).toMatch(/^#[0-9A-Fa-f]{6}$/);
         expect(f.title).toBeTruthy();

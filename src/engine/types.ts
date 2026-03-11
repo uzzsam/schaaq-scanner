@@ -31,7 +31,8 @@ export type CostCategory =
   | 'dataQuality'
   | 'integration'
   | 'productivity'
-  | 'regulatory';
+  | 'regulatory'
+  | 'aiMlRiskExposure';
 
 export type PropertyId =
   | 'semanticIdentity'
@@ -40,7 +41,8 @@ export type PropertyId =
   | 'antiCorruption'
   | 'schemaGovernance'
   | 'continuousQuality'
-  | 'regulatoryTraceability';
+  | 'regulatoryTraceability'
+  | 'aiReadiness';
 
 export type FindingId =
   | 'P1-M' | 'P1-E' | 'P1-U'
@@ -49,7 +51,8 @@ export type FindingId =
   | 'P4-M' | 'P4-E' | 'P4-U'
   | 'P5-M' | 'P5-E' | 'P5-U'
   | 'P6-M' | 'P6-E' | 'P6-U'
-  | 'P7-M' | 'P7-E' | 'P7-U';
+  | 'P7-M' | 'P7-E' | 'P7-U'
+  | 'P8-M' | 'P8-E' | 'P8-U';
 
 export type EvidenceQuality = 'Strong' | 'Moderate' | 'Estimated';
 
@@ -99,6 +102,10 @@ export interface SectorConfig {
   regTighteningRate: number;
   techDebtRate: number;
   enforcementMultiplier: number;
+  /** Fraction of total poor-data-quality base cost allocated to AI/ML risk (C6) */
+  aiMlBaseAllocationFraction: number;
+  /** Sector multiplier applied to C6 W matrix weights */
+  aiMlWMatrixMultiplier: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -116,13 +123,14 @@ export interface ApproachConfig {
 // W Matrix
 // ---------------------------------------------------------------------------
 
-/** 5x5 matrix — indices: 0=Firefighting, 1=Quality, 2=Integration, 3=Productivity, 4=Regulatory */
+/** 6x6 matrix — indices: 0=Firefighting, 1=Quality, 2=Integration, 3=Productivity, 4=Regulatory, 5=AI/ML Risk */
 export type WMatrix = [
-  [number, number, number, number, number],
-  [number, number, number, number, number],
-  [number, number, number, number, number],
-  [number, number, number, number, number],
-  [number, number, number, number, number],
+  [number, number, number, number, number, number],
+  [number, number, number, number, number, number],
+  [number, number, number, number, number, number],
+  [number, number, number, number, number, number],
+  [number, number, number, number, number, number],
+  [number, number, number, number, number, number],
 ];
 
 // ---------------------------------------------------------------------------
@@ -135,6 +143,7 @@ export interface CategoryWeights {
   integration: number;
   productivity: number;
   regulatory: number;
+  aiMlRiskExposure: number;
 }
 
 export interface FindingDefinition {
@@ -181,6 +190,7 @@ export interface CostVector {
   integration: number;
   productivity: number;
   regulatory: number;
+  aiMlRiskExposure: number;
 }
 
 export interface FindingCostResult {

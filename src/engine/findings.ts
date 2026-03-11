@@ -2,7 +2,7 @@
  * DALC v4 Engine — Findings Dataset
  * Engine codename: Archimedes
  *
- * All 21 findings (7 per sector x 3 sectors) from Blueprint section 3.
+ * All 24 findings (8 per sector x 3 sectors) from Blueprint section 3.
  * Each finding includes cost function, category weights, DAMA-DMBOK refs,
  * sector standards, remediation text, and Phase 2 scanner check description.
  */
@@ -10,7 +10,7 @@
 import type { DALCInput, FindingDefinition, Sector } from './types';
 
 // ---------------------------------------------------------------------------
-// All 21 Findings
+// All 24 Findings
 // ---------------------------------------------------------------------------
 
 export const FINDINGS: FindingDefinition[] = [
@@ -34,6 +34,7 @@ export const FINDINGS: FindingDefinition[] = [
       integration: 0.2,
       productivity: 0.2,
       regulatory: 0,
+      aiMlRiskExposure: 0,
     },
     costFunction: (input: DALCInput) => 52_000 * input.sourceSystems,
     remediation:
@@ -58,6 +59,7 @@ export const FINDINGS: FindingDefinition[] = [
       integration: 0.2,
       productivity: 0,
       regulatory: 0.3,
+      aiMlRiskExposure: 0,
     },
     costFunction: (input: DALCInput) => 48_000 * input.sourceSystems,
     remediation:
@@ -83,6 +85,7 @@ export const FINDINGS: FindingDefinition[] = [
       integration: 0.3,
       productivity: 0.2,
       regulatory: 0,
+      aiMlRiskExposure: 0,
     },
     costFunction: (input: DALCInput) => 65_000 * input.sourceSystems,
     remediation:
@@ -112,6 +115,7 @@ export const FINDINGS: FindingDefinition[] = [
       integration: 0.2,
       productivity: 0.3,
       regulatory: 0.1,
+      aiMlRiskExposure: 0,
     },
     costFunction: (input: DALCInput) => 38_000 * input.sourceSystems,
     remediation:
@@ -137,6 +141,7 @@ export const FINDINGS: FindingDefinition[] = [
       integration: 0.2,
       productivity: 0.3,
       regulatory: 0.2,
+      aiMlRiskExposure: 0,
     },
     costFunction: (input: DALCInput) => 44_000 * input.sourceSystems,
     remediation:
@@ -162,6 +167,7 @@ export const FINDINGS: FindingDefinition[] = [
       integration: 0.2,
       productivity: 0.2,
       regulatory: 0,
+      aiMlRiskExposure: 0,
     },
     costFunction: (input: DALCInput) => 55_000 * input.sourceSystems,
     remediation:
@@ -191,6 +197,7 @@ export const FINDINGS: FindingDefinition[] = [
       integration: 0.3,
       productivity: 0.2,
       regulatory: 0,
+      aiMlRiskExposure: 0,
     },
     costFunction: (input: DALCInput) =>
       45_000 * input.sourceSystems * 0.5,
@@ -217,6 +224,7 @@ export const FINDINGS: FindingDefinition[] = [
       integration: 0.2,
       productivity: 0.3,
       regulatory: 0.3,
+      aiMlRiskExposure: 0,
     },
     costFunction: (input: DALCInput) =>
       60_000 * Math.max(1, input.sourceSystems * 0.3),
@@ -243,6 +251,7 @@ export const FINDINGS: FindingDefinition[] = [
       integration: 0.3,
       productivity: 0.2,
       regulatory: 0,
+      aiMlRiskExposure: 0,
     },
     costFunction: (input: DALCInput) =>
       70_000 * input.sourceSystems * 0.4,
@@ -273,6 +282,7 @@ export const FINDINGS: FindingDefinition[] = [
       integration: 0.2,
       productivity: 0.2,
       regulatory: 0,
+      aiMlRiskExposure: 0,
     },
     costFunction: (input: DALCInput) => 52_000 * input.sourceSystems,
     remediation:
@@ -298,6 +308,7 @@ export const FINDINGS: FindingDefinition[] = [
       integration: 0.2,
       productivity: 0,
       regulatory: 0.3,
+      aiMlRiskExposure: 0,
     },
     costFunction: (input: DALCInput) => 48_000 * input.sourceSystems,
     remediation:
@@ -323,6 +334,7 @@ export const FINDINGS: FindingDefinition[] = [
       integration: 0.3,
       productivity: 0.1,
       regulatory: 0,
+      aiMlRiskExposure: 0,
     },
     costFunction: (input: DALCInput) => 65_000 * input.sourceSystems,
     remediation:
@@ -352,6 +364,7 @@ export const FINDINGS: FindingDefinition[] = [
       integration: 0.2,
       productivity: 0.2,
       regulatory: 0,
+      aiMlRiskExposure: 0,
     },
     costFunction: (input: DALCInput) => 35_000 * input.sourceSystems,
     remediation:
@@ -377,6 +390,7 @@ export const FINDINGS: FindingDefinition[] = [
       integration: 0,
       productivity: 0.2,
       regulatory: 0.3,
+      aiMlRiskExposure: 0,
     },
     costFunction: (input: DALCInput) => 42_000 * input.sourceSystems,
     remediation:
@@ -402,6 +416,7 @@ export const FINDINGS: FindingDefinition[] = [
       integration: 0.3,
       productivity: 0.2,
       regulatory: 0,
+      aiMlRiskExposure: 0,
     },
     costFunction: (input: DALCInput) => 58_000 * input.sourceSystems,
     remediation:
@@ -431,6 +446,7 @@ export const FINDINGS: FindingDefinition[] = [
       integration: 0,
       productivity: 0.2,
       regulatory: 0.2,
+      aiMlRiskExposure: 0,
     },
     costFunction: (input: DALCInput) =>
       40_000 * input.sourceSystems * 0.6,
@@ -457,6 +473,7 @@ export const FINDINGS: FindingDefinition[] = [
       integration: 0,
       productivity: 0.3,
       regulatory: 0.4,
+      aiMlRiskExposure: 0,
     },
     costFunction: (input: DALCInput) =>
       55_000 * input.sourceSystems * 0.5,
@@ -483,6 +500,7 @@ export const FINDINGS: FindingDefinition[] = [
       integration: 0.2,
       productivity: 0,
       regulatory: 0.2,
+      aiMlRiskExposure: 0,
     },
     costFunction: (input: DALCInput) =>
       60_000 * input.sourceSystems * 0.5,
@@ -514,6 +532,7 @@ export const FINDINGS: FindingDefinition[] = [
       integration: 0,
       productivity: 0.3,
       regulatory: 0.5,
+      aiMlRiskExposure: 0,
     },
     costFunction: (input: DALCInput) =>
       45_000 * input.sourceSystems * 0.4,
@@ -540,6 +559,7 @@ export const FINDINGS: FindingDefinition[] = [
       integration: 0,
       productivity: 0.2,
       regulatory: 0.8,
+      aiMlRiskExposure: 0,
     },
     costFunction: (input: DALCInput) =>
       Math.min(200_000, input.revenueAUD * 0.001) *
@@ -569,6 +589,7 @@ export const FINDINGS: FindingDefinition[] = [
       integration: 0.2,
       productivity: 0.2,
       regulatory: 0.4,
+      aiMlRiskExposure: 0,
     },
     costFunction: (input: DALCInput) =>
       50_000 * input.sourceSystems * 0.3,
@@ -576,6 +597,91 @@ export const FINDINGS: FindingDefinition[] = [
       'Implement automated data lineage tracking from sensor through SCADA through analytics to market/regulatory outputs. Every dispatch decision and compliance report should trace to source data.',
     scannerCheck:
       'Trace data flows from regulatory submissions back through transformation layers to source systems; flag where lineage is incomplete.',
+  },
+
+  // =========================================================================
+  // Property 8: AI Readiness
+  // =========================================================================
+  {
+    id: 'P8-M',
+    propertyId: 'aiReadiness',
+    sector: 'mining',
+    title: 'No Training Data Lineage for Autonomous Systems',
+    description:
+      'Autonomous haulage, predictive maintenance, and grade control models consume data with no documented lineage, no bias-attribute cataloguing, and no reproducible feature stores. When an autonomous vehicle incident triggers investigation, the training data provenance does not exist.',
+    example:
+      'Predictive maintenance model trained on 3 years of vibration sensor data. Sensor was recalibrated twice during that period — model doesn\'t know. Grade control AI uses assay data with undocumented lab methodology changes. Autonomous haul truck makes a routing decision nobody can explain.',
+    damaDmbok: 'KA11 \u2014 Data Quality; KA10 \u2014 Metadata Management; KA5 \u2014 Data Security',
+    sectorStandard:
+      'Autonomous haulage data standards (Rio Tinto/BHP); OSDU ML-ready data profiles; ISO/IEC 5259',
+    categoryWeights: {
+      firefighting: 0,
+      dataQuality: 0.1,
+      integration: 0,
+      productivity: 0,
+      regulatory: 0.1,
+      aiMlRiskExposure: 0.8,
+    },
+    costFunction: (input: DALCInput) =>
+      45_000 * input.sourceSystems * 0.3,
+    remediation:
+      'Implement training data lineage for all ML models. Document bias-relevant attributes per EU AI Act Art 10. Version feature stores. Ensure model inputs satisfy ISO/IEC 5259 and NIST AI RMF requirements. Critical for autonomous systems where incident investigation requires full provenance.',
+    scannerCheck:
+      'Identify ML model artifacts; trace training data to source systems; flag where lineage is absent or bias attributes are undocumented.',
+  },
+  {
+    id: 'P8-E',
+    propertyId: 'aiReadiness',
+    sector: 'environmental',
+    title: 'ESG AI Models Lack Auditable Data Governance',
+    description:
+      'AI/ML models used for emissions prediction, compliance forecasting, and ESG scoring consume data with no documented governance. Model outputs feed regulatory submissions but training data lineage is untraceable. EU AI Act Art 10 mandates training data be "free of errors and complete" — the data architecture cannot demonstrate this.',
+    example:
+      'Emissions prediction model trained on 5 years of operational data. Methodology changed twice, supplier data quality degraded, and Scope 3 boundary expanded — model doesn\'t account for any of this. Published ESG score derived from AI model with no reproducible feature store. Auditor asks for the training data; it doesn\'t exist in auditable form.',
+    damaDmbok: 'KA11 \u2014 Data Quality; KA10 \u2014 Metadata Management; KA5 \u2014 Data Security',
+    sectorStandard:
+      'ESG AI model governance (CSRD Art 29b); emissions model reproducibility; TNFD data lineage for nature-related AI; EU AI Act Art 10\u201313',
+    categoryWeights: {
+      firefighting: 0,
+      dataQuality: 0.1,
+      integration: 0,
+      productivity: 0,
+      regulatory: 0.2,
+      aiMlRiskExposure: 0.7,
+    },
+    costFunction: (input: DALCInput) =>
+      50_000 * input.sourceSystems * 0.25,
+    remediation:
+      'Implement AI data governance framework aligned with EU AI Act Art 10\u201313 and NIST AI RMF. Document training data lineage, bias attributes, and methodology versioning for all ESG-related models. Ensure feature stores are reproducible and auditable. AI failures in sustainability reporting trigger the same enforcement as underlying data failures.',
+    scannerCheck:
+      'Identify AI/ML models feeding ESG metrics; trace training data provenance; flag where Art 10 compliance gaps exist \u2014 each gap is a regulatory liability.',
+  },
+  {
+    id: 'P8-U',
+    propertyId: 'aiReadiness',
+    sector: 'energy',
+    title: 'Grid AI Models Operate Without Data Governance',
+    description:
+      'Grid optimisation, load forecasting, and trading algorithms consume data with no documented lineage or governance. Critical infrastructure decisions made by AI models whose training data provenance is unknown. AESCSF and AEMO frameworks require demonstrable data governance for AI systems.',
+    example:
+      'Load forecasting model trained on historical demand data — but the data includes COVID-period anomalies, tariff structure changes, and DER penetration shifts that are not labelled. Trading algorithm uses weather data from a provider that changed methodology. Grid stability AI makes a constraint decision based on data nobody can trace.',
+    damaDmbok: 'KA11 \u2014 Data Quality; KA10 \u2014 Metadata Management; KA5 \u2014 Data Security',
+    sectorStandard:
+      'AEMO AI/ML data requirements; grid optimisation model validation (AESCSF); ENTSO-E AI interoperability standards; IEC 61968-100 AI extensions',
+    categoryWeights: {
+      firefighting: 0,
+      dataQuality: 0.1,
+      integration: 0.1,
+      productivity: 0,
+      regulatory: 0.1,
+      aiMlRiskExposure: 0.7,
+    },
+    costFunction: (input: DALCInput) =>
+      55_000 * input.sourceSystems * 0.3,
+    remediation:
+      'Implement AI data governance for all grid-facing models. Training data lineage must be traceable. Feature stores must be versioned and reproducible. Critical infrastructure AI requires demonstrable compliance with AESCSF and AEMO frameworks. Model validation must satisfy IEC 61968-100 AI extensions.',
+    scannerCheck:
+      'Identify AI/ML models in grid operations; trace training data to source systems; flag where governance gaps create critical infrastructure risk.',
   },
 ];
 

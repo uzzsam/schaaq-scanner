@@ -333,6 +333,53 @@ export const PROPERTIES: PropertyDefinition[] = [
       },
     ],
   },
+  {
+    id: 'aiReadiness',
+    name: 'AI Readiness',
+    definition:
+      'Data structures support machine-learning and AI workloads — training data lineage is traceable, bias-relevant attributes are documented, feature stores are reproducible, and model inputs satisfy regulatory requirements (EU AI Act Art 10–13, NIST AI RMF, ISO/IEC 5259). When an auditor asks "show me the training data for this model," the answer exists.',
+    damaDmbok: 'KA11 — Data Quality, KA10 — Metadata Management, KA5 — Data Security',
+    sectorStandards: {
+      mining:
+        'Autonomous haulage data standards (Rio Tinto/BHP), predictive maintenance feature stores, OSDU ML-ready data profiles',
+      environmental:
+        'ESG AI model governance (CSRD Art 29b), emissions model reproducibility, TNFD data lineage for nature-related AI — AI failures in sustainability reporting trigger the same enforcement as underlying data failures',
+      energy:
+        'AEMO AI/ML data requirements, grid optimisation model validation (AESCSF), ENTSO-E AI interoperability standards, IEC 61968-100 AI extensions',
+    },
+    maturitySpectrum: [
+      {
+        level: 0,
+        label: 'Absent',
+        description:
+          'No training data lineage. Model inputs undocumented. Bias attributes unknown. AI projects use whatever data is available with no governance.',
+      },
+      {
+        level: 1,
+        label: 'Recognised',
+        description:
+          'People know AI data governance is needed. Some ad-hoc documentation for individual models.',
+      },
+      {
+        level: 2,
+        label: 'Defined',
+        description:
+          'Training data lineage documented for key models but not automated. Bias attributes partially catalogued.',
+      },
+      {
+        level: 3,
+        label: 'Managed',
+        description:
+          'Automated training data lineage for most models. Feature stores with versioning. Bias attributes documented per EU AI Act Art 10.',
+      },
+      {
+        level: 4,
+        label: 'Optimised',
+        description:
+          'Full training data lineage. Reproducible feature stores. Bias-attribute documentation automated. Model inputs satisfy EU AI Act Art 10–13, NIST AI RMF, and ISO/IEC 5259.',
+      },
+    ],
+  },
 ];
 
 /**

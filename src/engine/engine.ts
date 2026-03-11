@@ -45,6 +45,7 @@ function zeroCostVector(): CostVector {
     integration: 0,
     productivity: 0,
     regulatory: 0,
+    aiMlRiskExposure: 0,
   };
 }
 
@@ -59,6 +60,7 @@ function costVectorToArray(cv: CostVector): number[] {
     cv.integration,
     cv.productivity,
     cv.regulatory,
+    cv.aiMlRiskExposure,
   ];
 }
 
@@ -69,6 +71,7 @@ function arrayToCostVector(arr: number[]): CostVector {
     integration: arr[2],
     productivity: arr[3],
     regulatory: arr[4],
+    aiMlRiskExposure: arr[5],
   };
 }
 
@@ -78,7 +81,8 @@ function sumCostVector(cv: CostVector): number {
     cv.dataQuality +
     cv.integration +
     cv.productivity +
-    cv.regulatory
+    cv.regulatory +
+    cv.aiMlRiskExposure
   );
 }
 
@@ -187,12 +191,18 @@ function computeBaseCosts(
   // CSRD uplift
   const f5Final = input.csrdInScope ? f5 * 2 : f5;
 
+  // F6: AI/ML Risk Exposure — Blueprint §5, C6 base allocation
+  // Fraction of total poor-data-quality base cost allocated to AI/ML risk
+  const poorDataQualityBase = f2 + f3 + f4; // quality + integration + productivity
+  const f6 = poorDataQualityBase * config.aiMlBaseAllocationFraction * (1 - M);
+
   return {
     firefighting: Math.max(0, f1),
     dataQuality: Math.max(0, f2),
     integration: Math.max(0, f3),
     productivity: Math.max(0, f4),
     regulatory: Math.max(0, f5Final),
+    aiMlRiskExposure: Math.max(0, f6),
   };
 }
 
@@ -246,6 +256,7 @@ function computeFindingsAdjustment(
       integration: rawCost * weights.integration,
       productivity: rawCost * weights.productivity,
       regulatory: rawCost * weights.regulatory,
+      aiMlRiskExposure: rawCost * weights.aiMlRiskExposure,
     };
 
     adjustmentTotals.firefighting += categoryCosts.firefighting;
@@ -253,6 +264,7 @@ function computeFindingsAdjustment(
     adjustmentTotals.integration += categoryCosts.integration;
     adjustmentTotals.productivity += categoryCosts.productivity;
     adjustmentTotals.regulatory += categoryCosts.regulatory;
+    adjustmentTotals.aiMlRiskExposure += categoryCosts.aiMlRiskExposure;
 
     findingResults.push({
       id: userFinding.id,
@@ -284,6 +296,10 @@ function computeFindingsAdjustment(
       adjustmentTotals.regulatory,
       baseCosts.regulatory * FINDINGS_ADJUSTMENT_CAP,
     ),
+    aiMlRiskExposure: Math.min(
+      adjustmentTotals.aiMlRiskExposure,
+      baseCosts.aiMlRiskExposure * FINDINGS_ADJUSTMENT_CAP,
+    ),
   };
 
   const adjustedCosts: CostVector = {
@@ -292,6 +308,7 @@ function computeFindingsAdjustment(
     integration: baseCosts.integration + cappedAdjustments.integration,
     productivity: baseCosts.productivity + cappedAdjustments.productivity,
     regulatory: baseCosts.regulatory + cappedAdjustments.regulatory,
+    aiMlRiskExposure: baseCosts.aiMlRiskExposure + cappedAdjustments.aiMlRiskExposure,
   };
 
   return {
@@ -326,34 +343,41 @@ function buildAMatrix(
   const f2 = S / (S + 10); // system saturation
   const f3 = 1 / (1 + Math.exp(8 * (M - 0.4))); // regulatory sigmoid
 
-  // Build 5x5 A matrix with specified topology
-  const A: number[][] = [
-    [0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0],
-  ];
+  // Build 6x6 A matrix with specified topology
+  const N = W.length;
+  const A: number[][] = Array.from({ length: N }, () => new Array(N).fill(0));
 
   // Row 0 (Firefighting):
   A[0][1] = W[0][1] * f1; // Quality → Firefighting
   A[0][2] = W[0][2] * f1 * f2; // Integration → Firefighting
   A[0][4] = W[0][4] * f3; // Regulatory → Firefighting
+  A[0][5] = W[0][5] * f1; // AI/ML Risk → Firefighting
 
   // Row 1 (Quality):
   A[1][2] = W[1][2] * f1 * f2; // Integration → Quality
   A[1][3] = W[1][3] * f1; // Productivity → Quality
+  A[1][5] = W[1][5] * f1; // AI/ML Risk → Quality
 
   // Row 2 (Integration):
   A[2][0] = W[2][0] * f1; // Firefighting → Integration
+  A[2][5] = W[2][5] * f1; // AI/ML Risk → Integration
 
   // Row 3 (Productivity):
   A[3][1] = W[3][1] * f1; // Quality → Productivity
   A[3][2] = W[3][2] * f1 * f2; // Integration → Productivity
+  A[3][5] = W[3][5] * f1; // AI/ML Risk → Productivity
 
   // Row 4 (Regulatory):
   A[4][1] = W[4][1] * f3; // Quality → Regulatory
   A[4][2] = W[4][2] * f1; // Integration → Regulatory
+  A[4][5] = W[4][5] * f3; // AI/ML Risk → Regulatory (statutory link)
+
+  // Row 5 (AI/ML Risk):
+  A[5][0] = W[5][0] * f1; // Firefighting → AI/ML Risk
+  A[5][1] = W[5][1] * f1; // Quality → AI/ML Risk (strongest: 80% of AI failures are data failures)
+  A[5][2] = W[5][2] * f1 * f2; // Integration → AI/ML Risk
+  A[5][3] = W[5][3] * f1; // Productivity → AI/ML Risk
+  A[5][4] = W[5][4] * f3; // Regulatory → AI/ML Risk
 
   return A;
 }
@@ -486,6 +510,7 @@ function applySanityBounds(
     integration: Math.min(costs.integration, maxPerCategory),
     productivity: Math.min(costs.productivity, maxPerCategory),
     regulatory: Math.min(costs.regulatory, maxPerCategory),
+    aiMlRiskExposure: Math.min(costs.aiMlRiskExposure, maxPerCategory),
   };
 
   if (
@@ -493,7 +518,8 @@ function applySanityBounds(
     cappedCosts.dataQuality < costs.dataQuality ||
     cappedCosts.integration < costs.integration ||
     cappedCosts.productivity < costs.productivity ||
-    cappedCosts.regulatory < costs.regulatory
+    cappedCosts.regulatory < costs.regulatory ||
+    cappedCosts.aiMlRiskExposure < costs.aiMlRiskExposure
   ) {
     capped = true;
   }
@@ -508,6 +534,7 @@ function applySanityBounds(
     cappedCosts.integration *= scaleFactor;
     cappedCosts.productivity *= scaleFactor;
     cappedCosts.regulatory *= scaleFactor;
+    cappedCosts.aiMlRiskExposure *= scaleFactor;
     total = maxTotal;
   }
 

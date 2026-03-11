@@ -43,8 +43,8 @@ const SECTOR_SUFFIX_MAP: Record<Sector, string> = {
   energy: '-U',
 };
 
-/** All 7 property IDs that need findings */
-const PROPERTY_IDS = [1, 2, 3, 4, 5, 6, 7] as const;
+/** All 8 property IDs that need findings */
+const PROPERTY_IDS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
 
 // =============================================================================
 // Threshold → Severity mapping

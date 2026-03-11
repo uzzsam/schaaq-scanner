@@ -88,7 +88,7 @@ describe('Cross-Validation', () => {
       }
     });
 
-    it('mapper produces exactly 7 engine findings (one per property)', () => {
+    it('mapper produces exactly 8 engine findings (one per property)', () => {
       const config = createMockConfig();
       const schema = createMockSchema();
       const findings: Finding[] = [];
@@ -98,12 +98,12 @@ describe('Cross-Validation', () => {
       const scored = scoreFindings(findings, schema);
       const input = mapToEngineInput(scored, schema, config);
 
-      expect(input.findings).toHaveLength(7);
+      expect(input.findings).toHaveLength(8);
 
       // Each finding maps to a unique property
       const ids = input.findings.map(f => f.id);
       const uniqueProperties = new Set(ids.map(id => id.charAt(1)));
-      expect(uniqueProperties.size).toBe(7);
+      expect(uniqueProperties.size).toBe(8);
     });
 
     it('engine result is financially bounded', () => {

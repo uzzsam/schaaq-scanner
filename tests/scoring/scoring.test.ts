@@ -239,10 +239,10 @@ describe('scoreFindings', () => {
 // Mapper Tests
 // =============================================================================
 describe('mapToEngineInput', () => {
-  it('produces 7 findings with correct sector suffix for mining', () => {
+  it('produces 8 findings with correct sector suffix for mining', () => {
     const scored: ScoredFindings = {
       findings: [],
-      propertyScores: new Map([[1, 0.5], [2, 0.3], [3, 0.1], [4, 0.4], [5, 0.2], [6, 0.6], [7, 0.8]]),
+      propertyScores: new Map([[1, 0.5], [2, 0.3], [3, 0.1], [4, 0.4], [5, 0.2], [6, 0.6], [7, 0.8], [8, 0.5]]),
       totalTables: 30,
       totalRowCount: 50000,
       zeroRowDowngrade: false,
@@ -252,7 +252,7 @@ describe('mapToEngineInput', () => {
     const config = makeConfig();
 
     const input = mapToEngineInput(scored, schema, config);
-    expect(input.findings).toHaveLength(7);
+    expect(input.findings).toHaveLength(8);
     for (const f of input.findings) {
       expect(f.id).toMatch(/-M$/);
     }
@@ -261,7 +261,7 @@ describe('mapToEngineInput', () => {
   it('produces correct sector suffix for environmental', () => {
     const scored: ScoredFindings = {
       findings: [],
-      propertyScores: new Map([[1, 0.5], [2, 0.3], [3, 0.1], [4, 0.4], [5, 0.2], [6, 0.6], [7, 0.8]]),
+      propertyScores: new Map([[1, 0.5], [2, 0.3], [3, 0.1], [4, 0.4], [5, 0.2], [6, 0.6], [7, 0.8], [8, 0.5]]),
       totalTables: 30,
       totalRowCount: 50000,
       zeroRowDowngrade: false,
@@ -290,7 +290,7 @@ describe('mapToEngineInput', () => {
   it('produces correct sector suffix for energy', () => {
     const scored: ScoredFindings = {
       findings: [],
-      propertyScores: new Map([[1, 0.5], [2, 0.3], [3, 0.1], [4, 0.4], [5, 0.2], [6, 0.6], [7, 0.8]]),
+      propertyScores: new Map([[1, 0.5], [2, 0.3], [3, 0.1], [4, 0.4], [5, 0.2], [6, 0.6], [7, 0.8], [8, 0.5]]),
       totalTables: 30,
       totalRowCount: 50000,
       zeroRowDowngrade: false,
@@ -319,7 +319,7 @@ describe('mapToEngineInput', () => {
   it('maps rawScore < 0.2 to none', () => {
     const scored: ScoredFindings = {
       findings: [],
-      propertyScores: new Map([[1, 0.1], [2, 0.1], [3, 0.1], [4, 0.1], [5, 0.1], [6, 0.1], [7, 0.1]]),
+      propertyScores: new Map([[1, 0.1], [2, 0.1], [3, 0.1], [4, 0.1], [5, 0.1], [6, 0.1], [7, 0.1], [8, 0.1]]),
       totalTables: 30,
       totalRowCount: 50000,
       zeroRowDowngrade: false,
@@ -337,7 +337,7 @@ describe('mapToEngineInput', () => {
   it('maps rawScore 0.2–0.6 to some', () => {
     const scored: ScoredFindings = {
       findings: [],
-      propertyScores: new Map([[1, 0.4], [2, 0.4], [3, 0.4], [4, 0.4], [5, 0.4], [6, 0.4], [7, 0.4]]),
+      propertyScores: new Map([[1, 0.4], [2, 0.4], [3, 0.4], [4, 0.4], [5, 0.4], [6, 0.4], [7, 0.4], [8, 0.4]]),
       totalTables: 30,
       totalRowCount: 50000,
       zeroRowDowngrade: false,
@@ -355,7 +355,7 @@ describe('mapToEngineInput', () => {
   it('maps rawScore >= 0.6 to pervasive', () => {
     const scored: ScoredFindings = {
       findings: [],
-      propertyScores: new Map([[1, 0.8], [2, 0.8], [3, 0.8], [4, 0.8], [5, 0.8], [6, 0.8], [7, 0.8]]),
+      propertyScores: new Map([[1, 0.8], [2, 0.8], [3, 0.8], [4, 0.8], [5, 0.8], [6, 0.8], [7, 0.8], [8, 0.8]]),
       totalTables: 30,
       totalRowCount: 50000,
       zeroRowDowngrade: false,
@@ -395,7 +395,7 @@ describe('mapToEngineInput', () => {
   it('derives ad-hoc modellingApproach for high severity', () => {
     const scored: ScoredFindings = {
       findings: [],
-      propertyScores: new Map([[1, 0.9], [2, 0.9], [3, 0.9], [4, 0.9], [5, 0.9], [6, 0.9], [7, 0.9]]),
+      propertyScores: new Map([[1, 0.9], [2, 0.9], [3, 0.9], [4, 0.9], [5, 0.9], [6, 0.9], [7, 0.9], [8, 0.9]]),
       totalTables: 30,
       totalRowCount: 50000,
       zeroRowDowngrade: false,
@@ -411,7 +411,7 @@ describe('mapToEngineInput', () => {
   it('derives canonical modellingApproach for low severity', () => {
     const scored: ScoredFindings = {
       findings: [],
-      propertyScores: new Map([[1, 0.05], [2, 0.05], [3, 0.05], [4, 0.05], [5, 0.05], [6, 0.05], [7, 0.05]]),
+      propertyScores: new Map([[1, 0.05], [2, 0.05], [3, 0.05], [4, 0.05], [5, 0.05], [6, 0.05], [7, 0.05], [8, 0.05]]),
       totalTables: 30,
       totalRowCount: 50000,
       zeroRowDowngrade: false,
@@ -427,7 +427,7 @@ describe('mapToEngineInput', () => {
   it('allows override for modellingApproach', () => {
     const scored: ScoredFindings = {
       findings: [],
-      propertyScores: new Map([[1, 0.9], [2, 0.9], [3, 0.9], [4, 0.9], [5, 0.9], [6, 0.9], [7, 0.9]]),
+      propertyScores: new Map([[1, 0.9], [2, 0.9], [3, 0.9], [4, 0.9], [5, 0.9], [6, 0.9], [7, 0.9], [8, 0.9]]),
       totalTables: 30,
       totalRowCount: 50000,
       zeroRowDowngrade: false,

@@ -72,12 +72,12 @@ describe('Full Pipeline Integration', () => {
     const scored = scoreFindings(allFindings, mockSchema);
     const input = mapToEngineInput(scored, mockSchema, mockConfig);
 
-    // 7 findings (one per property)
-    expect(input.findings).toHaveLength(7);
+    // 8 findings (one per property)
+    expect(input.findings).toHaveLength(8);
 
-    // All have valid FindingId format (P1-M through P7-M for mining)
+    // All have valid FindingId format (P1-M through P8-M for mining)
     for (const f of input.findings) {
-      expect(f.id).toMatch(/^P[1-7]-M$/);
+      expect(f.id).toMatch(/^P[1-8]-M$/);
       expect(['none', 'some', 'pervasive']).toContain(f.severity);
     }
 
@@ -112,7 +112,7 @@ describe('Full Pipeline Integration', () => {
     expect(result.baseTotal).toBeGreaterThan(0);
 
     // Property scores
-    expect(result.propertyScores).toHaveLength(7);
+    expect(result.propertyScores).toHaveLength(8);
     for (const ps of result.propertyScores) {
       expect(ps.score).toBeGreaterThanOrEqual(0);
       expect(ps.score).toBeLessThanOrEqual(4);
@@ -146,7 +146,7 @@ describe('Full Pipeline Integration', () => {
     expect(scored.findings.every((f) => f.rawScore > 0)).toBe(true);
 
     const input = mapToEngineInput(scored, mockSchema, mockConfig);
-    expect(input.findings).toHaveLength(7);
+    expect(input.findings).toHaveLength(8);
 
     const result = calculateDALC(input);
 
@@ -154,10 +154,10 @@ describe('Full Pipeline Integration', () => {
     expect(result.engineVersion).toBe('v4.0.0');
     expect(typeof result.finalTotal).toBe('number');
     expect(result.finalTotal).toBeGreaterThan(0);
-    expect(result.propertyScores).toHaveLength(7);
+    expect(result.propertyScores).toHaveLength(8);
     expect(result.fiveYearProjection).toHaveLength(5);
     expect(result.fiveYearCumulativeSaving).toBeDefined();
-    expect(result.findingResults).toHaveLength(7);
+    expect(result.findingResults).toHaveLength(8);
 
     // Sanity check: costs should be plausible for a $250M revenue mining company
     // Total disorder cost should be between $100K and $100M

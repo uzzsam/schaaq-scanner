@@ -106,6 +106,10 @@ export const SECTOR_CONFIGS: Record<string, SectorConfig> = {
     regTighteningRate: 0.12,
     techDebtRate: 0.06,
     enforcementMultiplier: 3.5,
+    // C6: Early AI adoption (autonomous haulage, predictive maintenance). Rio Tinto/BHP use cases.
+    aiMlBaseAllocationFraction: 0.008,
+    // Below-average AI adoption density in typical mid-market mining firms
+    aiMlWMatrixMultiplier: 0.85,
   },
   environmental: {
     sector: 'environmental',
@@ -123,6 +127,10 @@ export const SECTOR_CONFIGS: Record<string, SectorConfig> = {
     regTighteningRate: 0.18,
     techDebtRate: 0.08,
     enforcementMultiplier: 5.0,
+    // C6: AI in emissions modelling, compliance prediction. ESG regulatory risk.
+    aiMlBaseAllocationFraction: 0.007,
+    // Baseline
+    aiMlWMatrixMultiplier: 1.00,
   },
   energy: {
     sector: 'energy',
@@ -140,39 +148,67 @@ export const SECTOR_CONFIGS: Record<string, SectorConfig> = {
     regTighteningRate: 0.10,
     techDebtRate: 0.10,
     enforcementMultiplier: 2.5,
+    // C6: Grid optimisation, trading algorithms. Critical infrastructure exposure.
+    aiMlBaseAllocationFraction: 0.012,
+    // Above-average AI dependency, critical infrastructure
+    aiMlWMatrixMultiplier: 1.15,
   },
 };
 
 // ---------------------------------------------------------------------------
 // W Matrices — Blueprint §6
-// Indices: 0=Firefighting, 1=Quality, 2=Integration, 3=Productivity, 4=Regulatory
+// Indices: 0=Firefighting, 1=Quality, 2=Integration, 3=Productivity, 4=Regulatory, 5=AI/ML Risk
 // W[i][j] = how much cost in category j amplifies cost in category i
 // ---------------------------------------------------------------------------
+//
+// C6 (AI/ML Risk Exposure) Dependencies — Evidence sources:
+// --- How other categories feed INTO AI/ML Risk (column 5) ---
+// C1 (Rework) → C6:       0.08 — Poor instrumentation increases AI incident MTTR. EU AI Act Art 12 record-keeping.
+// C2 (Data Quality) → C6: 0.22 — STRONGEST dependency. 80% of AI failures are data failures (RAND RRA2680-1). EU AI Act Art 10.
+// C3 (Integration) → C6:  0.15 — Pipeline fragility corrupts model inputs. Google SRE data pipeline literature.
+// C4 (Productivity) → C6: 0.03 — Indirect: less bandwidth for AI governance.
+// C5 (Regulatory) → C6:   0.10 — Compliance gaps amplify AI regulatory risk. EU AI Act Art 99.
+//
+// --- How AI/ML Risk feeds INTO other categories (row 5) ---
+// C6 → C1 (Rework):       0.13 — AI failures force pipeline rebuilds. FTC Rite Aid remedy: banned from AI, forced process rebuild.
+// C6 → C2 (Data Quality): 0.12 — AI failures expose hidden quality issues, triggering remediation cycles.
+// C6 → C3 (Integration):  0.08 — Failed AI projects require integration rearchitecture.
+// C6 → C4 (Productivity): 0.10 — Failed AI projects consume scarce technical talent bandwidth.
+// C6 → C5 (Regulatory):   0.20 — Direct statutory link. EU AI Act Art 99. Meta $1.4B Texas settlement. Clearview €30.5M Dutch DPA fine.
+// C6 → C6 (self):         0.00 — Diagonal stays zero.
+//
+// Sector multipliers applied to C6 weights:
+// mining: 0.85 — Below-average AI adoption density
+// environmental: 1.00 — Baseline
+// energy: 1.15 — Above-average AI dependency, critical infrastructure
 
 export const W_MATRICES: Record<string, WMatrix> = {
   mining: [
-    //  F1     F2     F3     F4     F5
-    [0,     0.045, 0.135, 0,     0.045], // F1: Quality→FF, Integration→FF, Regulatory→FF
-    [0,     0,     0.180, 0.135, 0    ], // F2: Integration→Quality, Productivity→Quality
-    [0.090, 0,     0,     0,     0    ], // F3: Firefighting→Integration
-    [0,     0.180, 0.090, 0,     0    ], // F4: Quality→Productivity, Integration→Productivity
-    [0,     0.225, 0.045, 0,     0    ], // F5: Quality→Regulatory, Integration→Regulatory
+    //  C1     C2     C3     C4     C5     C6
+    [0,     0.045, 0.135, 0,     0.045, 0.13 * 0.85 ], // C1: +C6→C1 (AI failures force pipeline rebuilds)
+    [0,     0,     0.180, 0.135, 0,     0.12 * 0.85 ], // C2: +C6→C2 (AI failures expose quality issues)
+    [0.090, 0,     0,     0,     0,     0.08 * 0.85 ], // C3: +C6→C3 (failed AI requires integration rearch)
+    [0,     0.180, 0.090, 0,     0,     0.10 * 0.85 ], // C4: +C6→C4 (failed AI consumes talent bandwidth)
+    [0,     0.225, 0.045, 0,     0,     0.20 * 0.85 ], // C5: +C6→C5 (EU AI Act Art 99, Meta $1.4B)
+    [0.08 * 0.85, 0.22 * 0.85, 0.15 * 0.85, 0.03 * 0.85, 0.10 * 0.85, 0], // C6: all deps × mining multiplier
   ],
   environmental: [
-    //  F1     F2     F3     F4     F5
-    [0,     0.060, 0.080, 0,     0.140], // F1
-    [0,     0,     0.100, 0.180, 0    ], // F2
-    [0.070, 0,     0,     0,     0    ], // F3
-    [0,     0.220, 0.060, 0,     0    ], // F4
-    [0,     0.350, 0.080, 0,     0    ], // F5
+    //  C1     C2     C3     C4     C5     C6
+    [0,     0.060, 0.080, 0,     0.140, 0.13 * 1.00 ], // C1
+    [0,     0,     0.100, 0.180, 0,     0.12 * 1.00 ], // C2
+    [0.070, 0,     0,     0,     0,     0.08 * 1.00 ], // C3
+    [0,     0.220, 0.060, 0,     0,     0.10 * 1.00 ], // C4
+    [0,     0.350, 0.080, 0,     0,     0.20 * 1.00 ], // C5
+    [0.08 * 1.00, 0.22 * 1.00, 0.15 * 1.00, 0.03 * 1.00, 0.10 * 1.00, 0], // C6
   ],
   energy: [
-    //  F1     F2     F3     F4     F5
-    [0,     0.050, 0.220, 0,     0.080], // F1
-    [0,     0,     0.250, 0.120, 0    ], // F2
-    [0.120, 0,     0,     0,     0    ], // F3
-    [0,     0.160, 0.150, 0,     0    ], // F4
-    [0,     0.180, 0.120, 0,     0    ], // F5
+    //  C1     C2     C3     C4     C5     C6
+    [0,     0.050, 0.220, 0,     0.080, 0.13 * 1.15 ], // C1
+    [0,     0,     0.250, 0.120, 0,     0.12 * 1.15 ], // C2
+    [0.120, 0,     0,     0,     0,     0.08 * 1.15 ], // C3
+    [0,     0.160, 0.150, 0,     0,     0.10 * 1.15 ], // C4
+    [0,     0.180, 0.120, 0,     0,     0.20 * 1.15 ], // C5
+    [0.08 * 1.15, 0.22 * 1.15, 0.15 * 1.15, 0.03 * 1.15, 0.10 * 1.15, 0], // C6
   ],
 };
 
@@ -309,6 +345,26 @@ export const EVIDENCE_CITATIONS: EvidenceCitation[] = [
   {
     claim: 'W matrix coefficients',
     source: 'KB-11 Gemini calibration — 87% estimated, 13% sourced',
+    quality: 'Moderate',
+  },
+  {
+    claim: '80% of AI failures are data failures',
+    source: 'RAND Corporation RRA2680-1',
+    quality: 'Strong',
+  },
+  {
+    claim: 'EU AI Act Art 10 mandates training data be "free of errors and complete"',
+    source: 'EU AI Act (Regulation 2024/1689)',
+    quality: 'Strong',
+  },
+  {
+    claim: '$5B+ in named AI incidents (Meta $1.4B+$650M, Anthropic $1.5B, Zillow $500M+)',
+    source: 'Public enforcement records and financial disclosures',
+    quality: 'Strong',
+  },
+  {
+    claim: 'C6 base allocation fractions (0.007-0.018) calibrated for CFO defensibility',
+    source: 'Evidence synthesis: 16 named incidents, EU AI Act, NIST AI RMF, ISO/IEC 5259',
     quality: 'Moderate',
   },
 ];

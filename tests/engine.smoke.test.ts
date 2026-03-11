@@ -23,6 +23,7 @@ const MINING_FINDINGS: FindingSeverity[] = [
   { id: 'P5-M', severity: 'pervasive' },
   { id: 'P6-M', severity: 'pervasive' },
   { id: 'P7-M', severity: 'pervasive' },
+  { id: 'P8-M', severity: 'pervasive' },
 ];
 
 const REFERENCE_MINING: DALCInput = {
@@ -78,6 +79,7 @@ describe('Engine Smoke Test — Standalone Extraction', () => {
     expect(result.baseCosts.integration).toBeGreaterThan(0);
     expect(result.baseCosts.productivity).toBeGreaterThan(0);
     expect(result.baseCosts.regulatory).toBeGreaterThan(0);
+    expect(result.baseCosts.aiMlRiskExposure).toBeGreaterThan(0);
   });
 
   // --- Layer 1c: Findings Adjustment ---
@@ -87,7 +89,8 @@ describe('Engine Smoke Test — Standalone Extraction', () => {
       result.findingsAdjustment.dataQuality +
       result.findingsAdjustment.integration +
       result.findingsAdjustment.productivity +
-      result.findingsAdjustment.regulatory;
+      result.findingsAdjustment.regulatory +
+      result.findingsAdjustment.aiMlRiskExposure;
     expect(adjTotal).toBeGreaterThan(0);
   });
 
@@ -97,6 +100,7 @@ describe('Engine Smoke Test — Standalone Extraction', () => {
     expect(result.adjustedCosts.integration).toBeGreaterThanOrEqual(result.baseCosts.integration);
     expect(result.adjustedCosts.productivity).toBeGreaterThanOrEqual(result.baseCosts.productivity);
     expect(result.adjustedCosts.regulatory).toBeGreaterThanOrEqual(result.baseCosts.regulatory);
+    expect(result.adjustedCosts.aiMlRiskExposure).toBeGreaterThanOrEqual(result.baseCosts.aiMlRiskExposure);
   });
 
   // --- Layer 2: Amplification ---
@@ -130,6 +134,7 @@ describe('Engine Smoke Test — Standalone Extraction', () => {
     expect(result.finalCosts.integration).toBeLessThanOrEqual(maxCat + 1);
     expect(result.finalCosts.productivity).toBeLessThanOrEqual(maxCat + 1);
     expect(result.finalCosts.regulatory).toBeLessThanOrEqual(maxCat + 1);
+    expect(result.finalCosts.aiMlRiskExposure).toBeLessThanOrEqual(maxCat + 1);
   });
 
   // --- Canonical Comparison ---
@@ -159,8 +164,8 @@ describe('Engine Smoke Test — Standalone Extraction', () => {
   });
 
   // --- Property Scores ---
-  it('should produce 7 property scores', () => {
-    expect(result.propertyScores).toHaveLength(7);
+  it('should produce 8 property scores', () => {
+    expect(result.propertyScores).toHaveLength(8);
   });
 
   it('should have overall maturity between 0 and 4', () => {
@@ -168,13 +173,14 @@ describe('Engine Smoke Test — Standalone Extraction', () => {
     expect(result.overallMaturity).toBeLessThanOrEqual(4);
   });
 
-  // --- All 5 cost categories populated ---
-  it('should have all 5 amplified cost categories > 0', () => {
+  // --- All 6 cost categories populated ---
+  it('should have all 6 amplified cost categories > 0', () => {
     expect(result.amplifiedCosts.firefighting).toBeGreaterThan(0);
     expect(result.amplifiedCosts.dataQuality).toBeGreaterThan(0);
     expect(result.amplifiedCosts.integration).toBeGreaterThan(0);
     expect(result.amplifiedCosts.productivity).toBeGreaterThan(0);
     expect(result.amplifiedCosts.regulatory).toBeGreaterThan(0);
+    expect(result.amplifiedCosts.aiMlRiskExposure).toBeGreaterThan(0);
   });
 
   it('should have amplified total equal to sum of categories', () => {
@@ -183,13 +189,14 @@ describe('Engine Smoke Test — Standalone Extraction', () => {
       result.amplifiedCosts.dataQuality +
       result.amplifiedCosts.integration +
       result.amplifiedCosts.productivity +
-      result.amplifiedCosts.regulatory;
+      result.amplifiedCosts.regulatory +
+      result.amplifiedCosts.aiMlRiskExposure;
     expect(Math.abs(result.amplifiedTotal - sum)).toBeLessThan(1);
   });
 
   // --- Finding Results ---
-  it('should return 7 finding results for mining', () => {
-    expect(result.findingResults).toHaveLength(7);
+  it('should return 8 finding results for mining', () => {
+    expect(result.findingResults).toHaveLength(8);
   });
 
   it('should have all findings with pervasive severity', () => {
@@ -216,6 +223,7 @@ describe('Cross-Sector Sanity', () => {
       { id: 'P5-M', severity: 'some' },
       { id: 'P6-M', severity: 'some' },
       { id: 'P7-M', severity: 'some' },
+      { id: 'P8-M', severity: 'some' },
     ],
     environmental: [
       { id: 'P1-E', severity: 'some' },
@@ -225,6 +233,7 @@ describe('Cross-Sector Sanity', () => {
       { id: 'P5-E', severity: 'some' },
       { id: 'P6-E', severity: 'some' },
       { id: 'P7-E', severity: 'some' },
+      { id: 'P8-E', severity: 'some' },
     ],
     energy: [
       { id: 'P1-U', severity: 'some' },
@@ -234,6 +243,7 @@ describe('Cross-Sector Sanity', () => {
       { id: 'P5-U', severity: 'some' },
       { id: 'P6-U', severity: 'some' },
       { id: 'P7-U', severity: 'some' },
+      { id: 'P8-U', severity: 'some' },
     ],
   };
 
@@ -287,6 +297,7 @@ describe('No-Findings Baseline', () => {
     expect(result.findingsAdjustment.integration).toBe(0);
     expect(result.findingsAdjustment.productivity).toBe(0);
     expect(result.findingsAdjustment.regulatory).toBe(0);
+    expect(result.findingsAdjustment.aiMlRiskExposure).toBe(0);
     // Base costs should still be positive
     expect(result.baseTotal).toBeGreaterThan(0);
   });

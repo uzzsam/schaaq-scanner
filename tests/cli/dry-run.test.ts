@@ -64,7 +64,7 @@ describe('CLI Dry-Run', () => {
     expect(data.engineResult).toBeDefined();
     expect(data.engineResult.engineVersion).toBe('v4.0.0');
     expect(data.engineResult.finalTotal).toBeGreaterThan(0);
-    expect(data.engineResult.propertyScores).toHaveLength(7);
+    expect(data.engineResult.propertyScores).toHaveLength(8);
     expect(data.engineResult.fiveYearProjection).toHaveLength(5);
     expect(data.scannerFindings).toBeDefined();
     expect(data.scannerFindings.length).toBeGreaterThan(0);

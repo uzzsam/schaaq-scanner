@@ -123,14 +123,14 @@ describe('Docker Scan Integration', () => {
     expect(scored.findings.every(f => f.rawScore > 0)).toBe(true);
 
     const input = mapToEngineInput(scored, schemaData, scannerConfig);
-    expect(input.findings).toHaveLength(7);
+    expect(input.findings).toHaveLength(8);
 
     const result = calculateDALC(input);
 
     // Engine should produce valid result
     expect(result.engineVersion).toBe('v4.0.0');
     expect(result.finalTotal).toBeGreaterThan(0);
-    expect(result.propertyScores).toHaveLength(7);
+    expect(result.propertyScores).toHaveLength(8);
     expect(result.fiveYearProjection).toHaveLength(5);
     expect(result.annualSaving).toBeDefined();
     expect(result.paybackMonths).toBeDefined();
@@ -228,7 +228,7 @@ describe('Docker Scan Integration', () => {
     expect(data.organisation).toBe('Test Mining Corp');
     expect(data.engineResult.engineVersion).toBe('v4.0.0');
     expect(data.engineResult.finalTotal).toBeGreaterThan(0);
-    expect(data.engineResult.propertyScores).toHaveLength(7);
+    expect(data.engineResult.propertyScores).toHaveLength(8);
     expect(data.scannerFindings.length).toBeGreaterThan(0);
     expect(data.summary.schemasScanned).toBe(3);
   });
