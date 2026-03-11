@@ -12,7 +12,7 @@ files:
   - dist-electron/**/*
   - dist/**/*
   - ui/dist/**/*
-  - schaaq.ico
+  - build/icon.ico
   - "!**/node_modules/**/{CHANGELOG.md,README.md,README,readme.md,readme}"
   - "!**/node_modules/**/{test,__tests__,tests,powered-test,example,examples}"
   - "!**/node_modules/.bin"
@@ -29,15 +29,15 @@ win:
     - target: nsis
       arch:
         - x64
-  icon: schaaq.ico
+  icon: build/icon.ico
   signAndEditExecutable: false
 
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
-  installerIcon: schaaq.ico
-  uninstallerIcon: schaaq.ico
-  installerHeaderIcon: schaaq.ico
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: Schaaq Scanner
