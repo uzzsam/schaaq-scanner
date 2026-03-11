@@ -2,8 +2,11 @@ appId: com.schaaq.scanner
 productName: Schaaq Scanner
 copyright: Copyright © 2026 Schaaq
 
-# Keep asar off — better-sqlite3 native module needs direct filesystem access
-asar: false
+# ASAR archive — protects source files from casual reading
+asar: true
+asarUnpack:
+  - "**/*.node"
+  - "**/better-sqlite3/**"
 
 directories:
   output: installer-output
@@ -13,6 +16,9 @@ files:
   - dist/**/*
   - ui/dist/**/*
   - build/icon.ico
+  - "!**/*.map"
+  - "!**/*.ts"
+  - "!src/**"
   - "!**/node_modules/**/{CHANGELOG.md,README.md,README,readme.md,readme}"
   - "!**/node_modules/**/{test,__tests__,tests,powered-test,example,examples}"
   - "!**/node_modules/.bin"
