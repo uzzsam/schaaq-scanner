@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { join } from 'path';
 
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 
 const SCHEMA_SQL = `
   -- Projects represent client organisations
@@ -103,7 +103,7 @@ const SCHEMA_SQL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     scan_id TEXT NOT NULL REFERENCES scans(id) ON DELETE CASCADE,
     check_id TEXT NOT NULL,
-    property INTEGER NOT NULL CHECK (property BETWEEN 1 AND 7),
+    property INTEGER NOT NULL CHECK (property BETWEEN 1 AND 8),
     severity TEXT NOT NULL CHECK (severity IN ('critical', 'major', 'minor', 'info')),
     raw_score REAL NOT NULL,
     title TEXT NOT NULL,
@@ -151,7 +151,7 @@ const SCHEMA_SQL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     scan_id TEXT NOT NULL REFERENCES scans(id) ON DELETE CASCADE,
     check_id TEXT NOT NULL,
-    property INTEGER NOT NULL CHECK (property BETWEEN 1 AND 7),
+    property INTEGER NOT NULL CHECK (property BETWEEN 1 AND 8),
     title TEXT NOT NULL,
     description TEXT,
     detail TEXT,
@@ -282,7 +282,7 @@ export function initDatabase(dataDir: string): Database.Database {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             scan_id TEXT NOT NULL REFERENCES scans(id) ON DELETE CASCADE,
             check_id TEXT NOT NULL,
-            property INTEGER NOT NULL CHECK (property BETWEEN 1 AND 7),
+            property INTEGER NOT NULL CHECK (property BETWEEN 1 AND 8),
             title TEXT NOT NULL,
             description TEXT,
             detail TEXT,
@@ -359,6 +359,67 @@ export function initDatabase(dataDir: string): Database.Database {
         db.exec(`DROP TABLE projects`);
         db.exec(`ALTER TABLE projects_new RENAME TO projects`);
         db.prepare('INSERT OR REPLACE INTO schema_version (version) VALUES (?)').run(7);
+        db.exec(`COMMIT`);
+      } catch (err) {
+        db.exec(`ROLLBACK`);
+        throw err;
+      }
+    }
+
+    if (currentVersion < 8) {
+      // v8: widen property CHECK constraint from 1-7 to 1-8 for P8 AI Readiness
+      // SQLite cannot ALTER CHECK constraints, so recreate affected tables.
+      db.exec(`BEGIN TRANSACTION`);
+      try {
+        // --- scan_findings ---
+        db.exec(`DROP TABLE IF EXISTS scan_findings_new`);
+        db.exec(`
+          CREATE TABLE scan_findings_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scan_id TEXT NOT NULL REFERENCES scans(id) ON DELETE CASCADE,
+            check_id TEXT NOT NULL,
+            property INTEGER NOT NULL CHECK (property BETWEEN 1 AND 8),
+            severity TEXT NOT NULL CHECK (severity IN ('critical', 'major', 'minor', 'info')),
+            raw_score REAL NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT,
+            affected_objects INTEGER,
+            total_objects INTEGER,
+            ratio REAL,
+            remediation TEXT,
+            evidence_json TEXT,
+            cost_categories_json TEXT,
+            cost_weights_json TEXT
+          )
+        `);
+        db.exec(`INSERT INTO scan_findings_new SELECT * FROM scan_findings`);
+        db.exec(`DROP TABLE scan_findings`);
+        db.exec(`ALTER TABLE scan_findings_new RENAME TO scan_findings`);
+        db.exec(`CREATE INDEX IF NOT EXISTS idx_findings_scan ON scan_findings(scan_id)`);
+        db.exec(`CREATE INDEX IF NOT EXISTS idx_findings_property ON scan_findings(property)`);
+        db.exec(`CREATE INDEX IF NOT EXISTS idx_findings_severity ON scan_findings(severity)`);
+
+        // --- scan_strengths ---
+        db.exec(`DROP TABLE IF EXISTS scan_strengths_new`);
+        db.exec(`
+          CREATE TABLE scan_strengths_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scan_id TEXT NOT NULL REFERENCES scans(id) ON DELETE CASCADE,
+            check_id TEXT NOT NULL,
+            property INTEGER NOT NULL CHECK (property BETWEEN 1 AND 8),
+            title TEXT NOT NULL,
+            description TEXT,
+            detail TEXT,
+            metric TEXT
+          )
+        `);
+        db.exec(`INSERT INTO scan_strengths_new SELECT * FROM scan_strengths`);
+        db.exec(`DROP TABLE scan_strengths`);
+        db.exec(`ALTER TABLE scan_strengths_new RENAME TO scan_strengths`);
+        db.exec(`CREATE INDEX IF NOT EXISTS idx_strengths_scan ON scan_strengths(scan_id)`);
+        db.exec(`CREATE INDEX IF NOT EXISTS idx_strengths_property ON scan_strengths(property)`);
+
+        db.prepare('INSERT OR REPLACE INTO schema_version (version) VALUES (?)').run(8);
         db.exec(`COMMIT`);
       } catch (err) {
         db.exec(`ROLLBACK`);
