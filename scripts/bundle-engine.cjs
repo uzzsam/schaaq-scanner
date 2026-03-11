@@ -27,7 +27,7 @@ for (const file of ENGINE_FILES) {
     minifySyntax: true,
     minifyIdentifiers: false,
     target: 'node20',
-    format: 'cjs',
+    format: 'esm',
     keepNames: false,
   });
 
