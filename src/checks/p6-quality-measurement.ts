@@ -55,6 +55,7 @@ export const p6HighNullRate: ScannerCheck = {
       integration: 0,
       productivity: 0.1,
       regulatory: 0.2,
+      aiMlRiskExposure: 0,
     };
 
     const costCategories: CostCategory[] = (
@@ -148,6 +149,7 @@ export const p6NoIndexes: ScannerCheck = {
       integration: 0,
       productivity: 0.6,
       regulatory: 0,
+      aiMlRiskExposure: 0,
     };
 
     const costCategories: CostCategory[] = (

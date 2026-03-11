@@ -83,6 +83,7 @@ export const p5NamingViolations: ScannerCheck = {
       integration: 0.1,
       productivity: 0.5,
       regulatory: 0,
+      aiMlRiskExposure: 0,
     };
 
     const costCategories: CostCategory[] = (
@@ -168,6 +169,7 @@ export const p5MissingPk: ScannerCheck = {
       integration: 0.2,
       productivity: 0.1,
       regulatory: 0.2,
+      aiMlRiskExposure: 0,
     };
 
     const costCategories: CostCategory[] = (
@@ -249,6 +251,7 @@ export const p5Undocumented: ScannerCheck = {
       integration: 0.1,
       productivity: 0.6,
       regulatory: 0,
+      aiMlRiskExposure: 0,
     };
 
     const costCategories: CostCategory[] = (

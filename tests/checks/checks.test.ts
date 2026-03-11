@@ -731,17 +731,17 @@ describe('CSV source — p5MissingPk severity downgrade', () => {
 // ALL_CHECKS array validation
 // =============================================================================
 describe('ALL_CHECKS array', () => {
-  it('has 18 checks', async () => {
+  it('has 21 checks', async () => {
     const { ALL_CHECKS } = await import('../../src/checks/index');
-    expect(ALL_CHECKS).toHaveLength(18);
+    expect(ALL_CHECKS).toHaveLength(21);
   });
 
-  it('covers all 7 properties', async () => {
+  it('covers all 8 properties', async () => {
     const { ALL_CHECKS } = await import('../../src/checks/index');
     const properties = new Set(ALL_CHECKS.map((c) => c.property));
-    expect(properties.size).toBe(7);
-    for (let p = 1; p <= 7; p++) {
-      expect(properties.has(p as 1|2|3|4|5|6|7)).toBe(true);
+    expect(properties.size).toBe(8);
+    for (let p = 1; p <= 8; p++) {
+      expect(properties.has(p as 1|2|3|4|5|6|7|8)).toBe(true);
     }
   });
 
@@ -861,7 +861,7 @@ describe('computeStrengths', () => {
     for (const s of strengths) {
       expect(s.checkId).toBeTruthy();
       expect(s.property).toBeGreaterThanOrEqual(1);
-      expect(s.property).toBeLessThanOrEqual(7);
+      expect(s.property).toBeLessThanOrEqual(8);
       expect(s.title).toBeTruthy();
       expect(s.description).toBeTruthy();
       expect(s.detail).toBeTruthy();

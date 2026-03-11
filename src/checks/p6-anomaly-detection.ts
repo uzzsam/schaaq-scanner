@@ -124,6 +124,7 @@ export const p6ZScoreOutliers: ScannerCheck = {
       integration: 0.1,
       productivity: 0.1,
       regulatory: 0.1,
+      aiMlRiskExposure: 0,
     };
 
     const costCategories: CostCategory[] = (
@@ -209,6 +210,7 @@ export const p6IqrOutliers: ScannerCheck = {
       integration: 0.1,
       productivity: 0.1,
       regulatory: 0.1,
+      aiMlRiskExposure: 0,
     };
 
     const costCategories: CostCategory[] = (
@@ -286,6 +288,7 @@ export const p6NullRateSpike: ScannerCheck = {
       integration: 0,
       productivity: 0.1,
       regulatory: 0.2,
+      aiMlRiskExposure: 0,
     };
 
     const costCategories: CostCategory[] = (

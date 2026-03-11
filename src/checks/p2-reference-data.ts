@@ -25,6 +25,7 @@ const TYPE_INCONSISTENCY_COST_WEIGHTS: Record<CostCategory, number> = {
   integration: 0.3,
   productivity: 0.1,
   regulatory: 0,
+  aiMlRiskExposure: 0,
 };
 
 const TYPE_INCONSISTENCY_ACTIVE_CATEGORIES: CostCategory[] = [
@@ -134,6 +135,7 @@ const UNCONTROLLED_VOCAB_COST_WEIGHTS: Record<CostCategory, number> = {
   integration: 0.3,
   productivity: 0.1,
   regulatory: 0,
+  aiMlRiskExposure: 0,
 };
 
 const UNCONTROLLED_VOCAB_ACTIVE_CATEGORIES: CostCategory[] = [

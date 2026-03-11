@@ -73,6 +73,10 @@ const tables: TableInfo[] = [
   { schema: 'mining', name: 'products', type: 'table', rowCount: 50, sizeBytes: 8192, createdAt: null, lastModified: null, comment: null },
   { schema: 'mining', name: 'raw_import_log', type: 'table', rowCount: 1000, sizeBytes: 16384, createdAt: null, lastModified: null, comment: null },
 
+  // ml schema — 2 tables (P8 AI readiness targets — no audit, no lineage, no versioning)
+  { schema: 'public', name: 'ml_feature_store', type: 'table', rowCount: 5000, sizeBytes: 65536, createdAt: null, lastModified: null, comment: null },
+  { schema: 'public', name: 'prediction_scores', type: 'table', rowCount: 10000, sizeBytes: 131072, createdAt: null, lastModified: null, comment: null },
+
   // environmental schema — 6 tables
   { schema: 'environmental', name: 'monitoring_points', type: 'table', rowCount: 300, sizeBytes: 16384, createdAt: null, lastModified: null, comment: null },
   { schema: 'environmental', name: 'readings', type: 'table', rowCount: 100000, sizeBytes: 1048576, createdAt: null, lastModified: null, comment: null },
@@ -139,6 +143,15 @@ const columns: ColumnInfo[] = [
   col('mining', 'products', 'id'), col('mining', 'products', 'name', 'varchar'), col('mining', 'products', 'status', 'boolean'),
   // mining.raw_import_log
   col('mining', 'raw_import_log', 'id'), col('mining', 'raw_import_log', 'filename', 'varchar'),
+
+  // public.ml_feature_store — P8 target: no audit, no lineage, no versioning, undocumented bias columns
+  col('public', 'ml_feature_store', 'id'), col('public', 'ml_feature_store', 'user_id'),
+  col('public', 'ml_feature_store', 'age', 'integer'), col('public', 'ml_feature_store', 'gender', 'varchar'),
+  col('public', 'ml_feature_store', 'income_bracket', 'varchar'), col('public', 'ml_feature_store', 'score', 'decimal'),
+  // public.prediction_scores — P8 target: no audit, no lineage, no versioning
+  col('public', 'prediction_scores', 'id'), col('public', 'prediction_scores', 'entity_id'),
+  col('public', 'prediction_scores', 'probability', 'decimal'), col('public', 'prediction_scores', 'label', 'varchar'),
+  col('public', 'prediction_scores', 'postcode', 'varchar'),
 
   // environmental.monitoring_points
   col('environmental', 'monitoring_points', 'id'), col('environmental', 'monitoring_points', 'facility_id'),

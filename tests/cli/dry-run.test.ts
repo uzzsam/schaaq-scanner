@@ -69,7 +69,7 @@ describe('CLI Dry-Run', () => {
     expect(data.scannerFindings).toBeDefined();
     expect(data.scannerFindings.length).toBeGreaterThan(0);
     expect(data.summary).toBeDefined();
-    expect(data.summary.totalTables).toBe(25);
+    expect(data.summary.totalTables).toBe(27);
   });
 
   it('runs --dry-run --verbose and shows detailed output', () => {

@@ -268,5 +268,36 @@ export function computeStrengths(
     });
   }
 
+  // ---- P8: AI Readiness ----
+  if (clean('p8-ai-lineage-completeness')) {
+    strengths.push({
+      checkId: 'p8-ai-lineage-completeness',
+      property: 8,
+      title: 'AI/ML data lineage tracked',
+      description: 'AI/ML data lineage is tracked with source metadata — supports EU AI Act Article 12 record-keeping.',
+      detail: 'ML-adjacent tables include audit columns and source lineage indicators.',
+    });
+  }
+
+  if (clean('p8-ai-bias-attribute-documentation')) {
+    strengths.push({
+      checkId: 'p8-ai-bias-attribute-documentation',
+      property: 8,
+      title: 'Bias-sensitive attributes documented',
+      description: 'Bias-sensitive attributes are documented and classified — supports EU AI Act Article 10 representativeness.',
+      detail: 'Demographic and proxy demographic columns have documentation and value constraints.',
+    });
+  }
+
+  if (clean('p8-ai-reproducibility')) {
+    strengths.push({
+      checkId: 'p8-ai-reproducibility',
+      property: 8,
+      title: 'Reproducible AI/ML pipelines',
+      description: 'Data architecture supports reproducible AI/ML training pipelines — supports EU AI Act Article 12 audit requirements.',
+      detail: 'Tables include temporal columns, versioning, and deterministic ordering for point-in-time reconstruction.',
+    });
+  }
+
   return strengths;
 }

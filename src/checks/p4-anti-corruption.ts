@@ -43,6 +43,7 @@ const CSV_IMPORT_COST_WEIGHTS: Record<CostCategory, number> = {
   integration: 0.3,
   productivity: 0.1,
   regulatory: 0,
+  aiMlRiskExposure: 0,
 };
 
 const CSV_IMPORT_ACTIVE_CATEGORIES: CostCategory[] = [
@@ -171,6 +172,7 @@ const ISLAND_TABLES_COST_WEIGHTS: Record<CostCategory, number> = {
   integration: 0.4,
   productivity: 0.1,
   regulatory: 0,
+  aiMlRiskExposure: 0,
 };
 
 const ISLAND_TABLES_ACTIVE_CATEGORIES: CostCategory[] = [
@@ -273,6 +275,7 @@ const WIDE_TABLES_COST_WEIGHTS: Record<CostCategory, number> = {
   integration: 0.1,
   productivity: 0.4,
   regulatory: 0,
+  aiMlRiskExposure: 0,
 };
 
 const WIDE_TABLES_ACTIVE_CATEGORIES: CostCategory[] = [

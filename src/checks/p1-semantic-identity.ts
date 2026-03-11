@@ -48,6 +48,7 @@ const COST_WEIGHTS: Record<CostCategory, number> = {
   integration: 0.5,
   productivity: 0.2,
   regulatory: 0,
+  aiMlRiskExposure: 0,
 };
 
 const ACTIVE_COST_CATEGORIES: CostCategory[] = (['firefighting', 'integration', 'productivity'] as CostCategory[]);

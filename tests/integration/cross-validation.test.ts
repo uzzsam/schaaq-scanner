@@ -44,13 +44,13 @@ function runFullPipeline(config: ScannerConfig): {
 
 describe('Cross-Validation', () => {
   describe('scanner vs self-assessment equivalence', () => {
-    it('scanner covers all 7 DALC properties', () => {
+    it('scanner covers all 8 DALC properties', () => {
       const config = createMockConfig();
       const { findings } = runFullPipeline(config);
 
       const properties = new Set(findings.map(f => f.property));
-      expect(properties.size).toBe(7);
-      for (let p = 1; p <= 7; p++) {
+      expect(properties.size).toBe(8);
+      for (let p = 1; p <= 8; p++) {
         expect(properties.has(p as Finding['property'])).toBe(true);
       }
     });
@@ -64,7 +64,7 @@ describe('Cross-Validation', () => {
         for (const f of results) {
           expect(f.checkId).toBeTruthy();
           expect(f.property).toBeGreaterThanOrEqual(1);
-          expect(f.property).toBeLessThanOrEqual(7);
+          expect(f.property).toBeLessThanOrEqual(8);
           expect(['critical', 'major', 'minor', 'info']).toContain(f.severity);
           expect(f.title).toBeTruthy();
           expect(f.description).toBeTruthy();

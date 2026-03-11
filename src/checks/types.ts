@@ -8,7 +8,8 @@ export type CostCategory =
   | 'dataQuality'
   | 'integration'
   | 'productivity'
-  | 'regulatory';
+  | 'regulatory'
+  | 'aiMlRiskExposure';
 
 // =============================================================================
 // Evidence — concrete proof for a finding
@@ -26,7 +27,7 @@ export interface Evidence {
 // =============================================================================
 export interface Finding {
   checkId: string;
-  property: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+  property: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
   severity: 'critical' | 'major' | 'minor' | 'info';
   rawScore: number;                 // 0.0–1.0 — set by severity scorer
   title: string;
@@ -81,7 +82,7 @@ export interface ScannerConfig {
 // =============================================================================
 export interface Strength {
   checkId: string;
-  property: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+  property: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
   title: string;
   description: string;
   detail: string;
@@ -93,7 +94,7 @@ export interface Strength {
 // =============================================================================
 export interface ScannerCheck {
   id: string;
-  property: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+  property: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
   name: string;
   description: string;
   execute(schema: SchemaData, config: ScannerConfig): Finding[];

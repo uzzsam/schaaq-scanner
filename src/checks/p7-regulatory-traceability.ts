@@ -90,6 +90,7 @@ export const p7MissingAudit: ScannerCheck = {
       integration: 0,
       productivity: 0.1,
       regulatory: 0.6,
+      aiMlRiskExposure: 0,
     };
 
     const costCategories: CostCategory[] = (
@@ -182,6 +183,7 @@ export const p7NoConstraints: ScannerCheck = {
       integration: 0.1,
       productivity: 0.1,
       regulatory: 0.4,
+      aiMlRiskExposure: 0,
     };
 
     const costCategories: CostCategory[] = (

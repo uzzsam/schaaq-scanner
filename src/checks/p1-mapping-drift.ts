@@ -97,6 +97,7 @@ const COST_WEIGHTS = {
   integration: 0.2,
   productivity: 0.2,
   regulatory: 0,
+  aiMlRiskExposure: 0,
 };
 
 const COST_CATEGORIES = ['firefighting', 'dataQuality', 'integration', 'productivity'];

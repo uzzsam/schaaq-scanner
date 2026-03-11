@@ -19,6 +19,7 @@ const DOMAIN_OVERLAP_COST_WEIGHTS: Record<CostCategory, number> = {
   integration: 0.4,
   productivity: 0.2,
   regulatory: 0,
+  aiMlRiskExposure: 0,
 };
 
 const DOMAIN_OVERLAP_ACTIVE_CATEGORIES: CostCategory[] = [
@@ -116,6 +117,7 @@ const CROSS_SCHEMA_COST_WEIGHTS: Record<CostCategory, number> = {
   integration: 0.5,
   productivity: 0.2,
   regulatory: 0,
+  aiMlRiskExposure: 0,
 };
 
 const CROSS_SCHEMA_ACTIVE_CATEGORIES: CostCategory[] = [

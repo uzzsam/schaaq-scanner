@@ -24,6 +24,9 @@ export interface DbContext {
     noIndexes: string;
     missingAudit: string;
     noConstraints: string;
+    aiLineageCompleteness: string;
+    aiBiasAttributeDocumentation: string;
+    aiReproducibility: string;
   };
 }
 
@@ -68,6 +71,12 @@ export function getDbContext(schema: SchemaData): DbContext {
             'Add created_at TIMESTAMPTZ DEFAULT now() and updated_at TIMESTAMPTZ DEFAULT now() columns. Create a trigger function (using CREATE FUNCTION + CREATE TRIGGER) to automatically set updated_at on each UPDATE.',
           noConstraints:
             'Add appropriate constraints: ALTER TABLE … ADD PRIMARY KEY, ADD CONSTRAINT … FOREIGN KEY, ADD CONSTRAINT … CHECK, ADD CONSTRAINT … UNIQUE. Use pg_catalog views to verify constraint coverage.',
+          aiLineageCompleteness:
+            'Add source tracking columns and use pg_depend or a lineage tool like dbt to document data flow into ML feature tables. EU AI Act Article 12 requires automatic event recording across the AI system lifetime.',
+          aiBiasAttributeDocumentation:
+            'Add COMMENT ON COLUMN for all bias-sensitive attributes. Create a data classification view using pg_description to flag protected attributes. EU AI Act Article 10 requires bias examination of training datasets.',
+          aiReproducibility:
+            'Add temporal columns using TIMESTAMPTZ DEFAULT now(). For full EU AI Act Art 12 compliance, consider PostgreSQL temporal table extensions or SCD Type 2 patterns to support point-in-time reconstruction of training datasets.',
         },
       };
 
@@ -99,6 +108,12 @@ export function getDbContext(schema: SchemaData): DbContext {
             'Add created_at DATETIME DEFAULT CURRENT_TIMESTAMP and updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP columns to all tables to support audit and compliance requirements.',
           noConstraints:
             'Add appropriate constraints: ALTER TABLE … ADD PRIMARY KEY, ADD CONSTRAINT … FOREIGN KEY (InnoDB), ADD CONSTRAINT … CHECK (MySQL 8.0+), ADD CONSTRAINT … UNIQUE. Verify engine supports the constraint type.',
+          aiLineageCompleteness:
+            'Add source_table and source_query columns to feature tables. Consider implementing a metadata schema to track data lineage for AI audit requirements.',
+          aiBiasAttributeDocumentation:
+            'Use ALTER TABLE … MODIFY COLUMN … COMMENT to document bias-sensitive columns. Consider a separate data_classification table.',
+          aiReproducibility:
+            'Add created_at DATETIME DEFAULT CURRENT_TIMESTAMP and updated_at ON UPDATE CURRENT_TIMESTAMP. These enable the dataset version reconstruction required by EU AI Act Article 12.',
         },
       };
 
@@ -130,6 +145,12 @@ export function getDbContext(schema: SchemaData): DbContext {
             'Add created_at DATETIME2 DEFAULT GETDATE() and updated_at DATETIME2 DEFAULT GETDATE() columns. Use triggers or temporal tables (WITH SYSTEM_VERSIONING) for automatic updated_at tracking.',
           noConstraints:
             'Add appropriate constraints: ALTER TABLE … ADD PRIMARY KEY, FOREIGN KEY, CHECK, UNIQUE. Use sys.objects and sys.check_constraints to audit constraint coverage across all tables.',
+          aiLineageCompleteness:
+            'Use SQL Server\'s built-in Extended Properties to document data sources for ML input tables. Consider SSIS lineage tracking. MSSQL 2016+ temporal tables support point-in-time queries required by EU AI Act Article 12.',
+          aiBiasAttributeDocumentation:
+            'Use sp_addextendedproperty to add \'sensitivity_classification\' metadata. SQL Server 2019+ supports built-in data classification (sys.sensitivity_classifications). Required for EU AI Act Art 10 representativeness.',
+          aiReproducibility:
+            'Enable system-versioned temporal tables (ALTER TABLE … ADD PERIOD FOR SYSTEM_TIME). This provides built-in point-in-time query support — the strongest architectural pattern for EU AI Act Article 12 compliance.',
         },
       };
 
@@ -161,6 +182,12 @@ export function getDbContext(schema: SchemaData): DbContext {
             'Add last_updated_date and updated_by columns to your CSV template to track when and by whom each row was last modified. Consider adding a version or revision column for change tracking.',
           noConstraints:
             'CSV files do not support native constraints. Consider adding data validation rules in your import process, or migrate to a database for enforced integrity. Use a validation script to check referential integrity between related CSV files.',
+          aiLineageCompleteness:
+            'Add \'data_source\', \'extraction_date\', and \'pipeline_version\' columns to CSV files used as ML inputs. Australia\'s Privacy Act reforms (Dec 2026) require ADM transparency — lineage metadata supports this.',
+          aiBiasAttributeDocumentation:
+            'Create a companion data dictionary CSV that classifies each column\'s sensitivity level (PII, bias-relevant, public). Australia\'s Dec 2026 ADM transparency requirements mandate disclosure of personal information types used in automated decisions.',
+          aiReproducibility:
+            'Include extraction timestamps in file names (data_YYYYMMDD_HHMMSS.csv) and add a \'snapshot_date\' column. Store historical versions rather than overwriting. Australia\'s Dec 2026 ADM transparency requirements will need this for audit trails.',
         },
       };
 
@@ -192,6 +219,12 @@ export function getDbContext(schema: SchemaData): DbContext {
             'Add created_at/updated_at timestamp columns and optionally created_by/updated_by user-tracking columns to all tables to support audit and compliance requirements.',
           noConstraints:
             'Add appropriate constraints (primary keys, foreign keys, check constraints, unique constraints) to enforce data integrity at the database level.',
+          aiLineageCompleteness:
+            'Document the full data lineage from source to ML input. Add source tracking metadata to all tables feeding AI/ML pipelines.',
+          aiBiasAttributeDocumentation:
+            'Document all columns containing demographic or proxy demographic data. Classify as bias-relevant and implement controlled vocabularies.',
+          aiReproducibility:
+            'Add temporal columns to all tables. Implement point-in-time query patterns (temporal tables or SCD Type 2) to support AI model audit and reproducibility.',
         },
       };
   }

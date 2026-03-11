@@ -7,6 +7,7 @@ import { p5NamingViolations, p5MissingPk, p5Undocumented } from './p5-schema-gov
 import { p6HighNullRate, p6NoIndexes } from './p6-quality-measurement';
 import { p6ZScoreOutliers, p6IqrOutliers, p6NullRateSpike } from './p6-anomaly-detection';
 import { p7MissingAudit, p7NoConstraints } from './p7-regulatory-traceability';
+import { p8AiLineageCompleteness, p8AiBiasAttributeDocumentation, p8AiReproducibility } from './p8-ai-readiness';
 
 export const ALL_CHECKS: ScannerCheck[] = [
   p1SemanticIdentity,
@@ -27,6 +28,9 @@ export const ALL_CHECKS: ScannerCheck[] = [
   p6NullRateSpike,
   p7MissingAudit,
   p7NoConstraints,
+  p8AiLineageCompleteness,
+  p8AiBiasAttributeDocumentation,
+  p8AiReproducibility,
 ];
 
 export {
@@ -48,6 +52,9 @@ export {
   p6NullRateSpike,
   p7MissingAudit,
   p7NoConstraints,
+  p8AiLineageCompleteness,
+  p8AiBiasAttributeDocumentation,
+  p8AiReproducibility,
 };
 
 export { computeStrengths } from './strengths';
