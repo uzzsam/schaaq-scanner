@@ -93,7 +93,7 @@ export function Projects() {
               </div>
 
               <div style={{ color: '#6B7280', fontSize: 12 }}>
-                {p.db_type} &middot; {p.db_host ?? 'localhost'}:{p.db_port ?? '5432'}
+                {p.db_type} &middot; {p.db_host ?? 'localhost'}:{p.db_port ?? (p.db_type === 'mssql' ? '1433' : p.db_type === 'mysql' ? '3306' : '5432')}
               </div>
 
               <div style={{ display: 'flex', gap: 8, marginTop: 'auto' }}>

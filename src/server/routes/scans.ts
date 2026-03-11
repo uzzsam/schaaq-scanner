@@ -148,7 +148,13 @@ export function scanRoutes(
           if (project.db_type === 'demo') {
             const { DemoAdapter } = await import('../../adapters/demo');
             adapter = new DemoAdapter();
-          } else if (!dryRun && project.db_host) {
+          } else if (!dryRun && !project.db_host && !project.db_connection_uri) {
+            // Non-demo project with no connection details — fail early
+            throw new Error(
+              `Project "${project.name}" has no database connection configured. ` +
+              `Edit the project and provide a host/port or connection string.`
+            );
+          } else if (!dryRun && (project.db_host || project.db_connection_uri)) {
             const adapterConfig = {
               type: project.db_type as 'postgresql' | 'mysql' | 'mssql',
               connectionUri: project.db_connection_uri ?? undefined,

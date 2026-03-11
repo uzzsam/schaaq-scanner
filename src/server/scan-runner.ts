@@ -55,7 +55,9 @@ export class ScanRunner extends EventEmitter {
         this.emitProgress(scanId, 0.1, 'Extracting Schema', 'Using uploaded CSV/Excel data');
         schemaData = schemaDataOverride;
       } else if (isDryRun || !adapter) {
-        this.emitProgress(scanId, 0.1, 'Extracting Schema', 'Using mock schema data (dry-run)');
+        const reason = isDryRun ? 'dry-run mode' : 'no database adapter configured';
+        console.warn(`[ScanRunner] Scan ${scanId}: using mock schema data (${reason})`);
+        this.emitProgress(scanId, 0.1, 'Extracting Schema', `Using mock schema data (${reason})`);
         schemaData = createMockSchema();
       } else {
         this.emitProgress(scanId, 0.05, 'Connecting', 'Connecting to database...');
