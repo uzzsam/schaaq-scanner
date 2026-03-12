@@ -38,3 +38,7 @@ tests/e2e/html-report/
 # OS files
 .DS_Store
 Thumbs.db
+nul
+
+# Claude Code worktrees
+.claude/worktrees/

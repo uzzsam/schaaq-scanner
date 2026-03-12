@@ -71,6 +71,10 @@ export const p6HighNullRate: ScannerCheck = {
       detail: `Column "${s.schema}"."${s.table}"."${s.column}" has ${((s.nullFraction ?? 0) * 100).toFixed(1)}% null values (threshold: ${(threshold * 100).toFixed(1)}%)`,
     }));
 
+    // Sort by null fraction descending for samples
+    const sorted = [...highNull].sort((a, b) => (b.nullFraction ?? 0) - (a.nullFraction ?? 0));
+    const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
+
     return [
       {
         checkId: 'p6-high-null-rate',
@@ -86,6 +90,37 @@ export const p6HighNullRate: ScannerCheck = {
         remediation: ctx.remediation.highNullRate,
         costCategories,
         costWeights,
+        evidenceInput: {
+          asset: {
+            type: 'column',
+            key: `${sorted[0].schema}.${sorted[0].table}.${sorted[0].column}`,
+            name: sorted[0].column,
+            schema: sorted[0].schema,
+            table: sorted[0].table,
+            column: sorted[0].column,
+          },
+          metric: {
+            name: 'high_null_columns',
+            observed: affectedObjects,
+            unit: 'columns',
+            displayText: `${affectedObjects} of ${totalObjects} columns exceed ${pct(threshold)} null rate`,
+          },
+          threshold: {
+            value: threshold,
+            operator: 'gt',
+            displayText: `Maximum allowed null fraction is ${pct(threshold)}`,
+          },
+          samples: sorted.slice(0, 10).map(s => ({
+            label: `${pct(s.nullFraction ?? 0)} null`,
+            value: `${s.schema}.${s.table}.${s.column}`,
+            context: { nullFraction: s.nullFraction ?? 0, threshold },
+          })),
+          explanation: {
+            whatWasFound: `${affectedObjects} columns have null fractions exceeding the ${pct(threshold)} threshold`,
+            whyItMatters: 'High null rates indicate missing or incomplete data, which degrades analytics accuracy, breaks downstream pipelines, and undermines trust in reporting',
+            howDetected: `Compared column-level null fraction statistics against the configured threshold of ${pct(threshold)}`,
+          },
+        },
       },
     ];
   },
@@ -184,6 +219,37 @@ export const p6NoIndexes: ScannerCheck = {
         remediation: ctx.remediation.noIndexes,
         costCategories,
         costWeights,
+        evidenceInput: {
+          asset: {
+            type: 'table',
+            key: `${noIndexTables[0].schema}.${noIndexTables[0].name}`,
+            name: noIndexTables[0].name,
+            schema: noIndexTables[0].schema,
+            table: noIndexTables[0].name,
+          },
+          relatedAssets: noIndexTables.slice(1).map(t => ({
+            type: 'table' as const,
+            key: `${t.schema}.${t.name}`,
+            name: t.name,
+            schema: t.schema,
+            table: t.name,
+          })),
+          samples: noIndexTables.slice(0, 10).map(t => {
+            const stats = schema.tableStatistics.find(
+              ts => ts.schema === t.schema && ts.table === t.name,
+            );
+            return {
+              label: 'Table without indexes',
+              value: `${t.schema}.${t.name}`,
+              context: { rowCount: stats?.rowCount ?? 0 },
+            };
+          }),
+          explanation: {
+            whatWasFound: `${affectedObjects} of ${totalObjects} tables with >100 rows have no indexes`,
+            whyItMatters: 'Tables without indexes force full table scans on every query, degrading performance and increasing resource consumption as data grows',
+            howDetected: 'Cross-referenced table statistics (row counts >100) against index metadata to find tables with data but no indexes',
+          },
+        },
       },
     ];
   },

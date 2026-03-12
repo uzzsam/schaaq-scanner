@@ -131,6 +131,23 @@ export const p8AiLineageCompleteness: ScannerCheck = {
         remediation: ctx.remediation.aiLineageCompleteness,
         costCategories,
         costWeights,
+        evidenceInput: {
+          asset: {
+            type: 'schema',
+            key: tables[0].schema,
+            name: tables[0].schema,
+            schema: tables[0].schema,
+          },
+          samples: [{
+            label: 'No ML-adjacent tables found',
+            value: `Scanned ${tables.length} tables`,
+          }],
+          explanation: {
+            whatWasFound: `Scanned ${tables.length} tables — none match ML-adjacent patterns (feature, model, training, embedding, vector, prediction)`,
+            whyItMatters: 'Absence of AI infrastructure means no data governance for AI, which is a risk signal as AI adoption grows',
+            howDetected: 'Matched table names and schemas against ML-adjacent heuristic patterns',
+          },
+        },
       }];
     }
 
@@ -177,6 +194,8 @@ export const p8AiLineageCompleteness: ScannerCheck = {
       });
     }
 
+    const allAffected = [...noAuditNoFk, ...auditNoLineage];
+
     return [{
       checkId: 'p8-ai-lineage-completeness',
       property: 8,
@@ -191,6 +210,32 @@ export const p8AiLineageCompleteness: ScannerCheck = {
       remediation: ctx.remediation.aiLineageCompleteness,
       costCategories,
       costWeights,
+      evidenceInput: {
+        asset: {
+          type: 'table',
+          key: `${allAffected[0].schema}.${allAffected[0].name}`,
+          name: allAffected[0].name,
+          schema: allAffected[0].schema,
+          table: allAffected[0].name,
+        },
+        relatedAssets: allAffected.slice(1).map(t => ({
+          type: 'table' as const,
+          key: `${t.schema}.${t.name}`,
+          name: t.name,
+          schema: t.schema,
+          table: t.name,
+        })),
+        samples: allAffected.slice(0, 10).map(t => ({
+          label: noAuditNoFk.includes(t) ? 'No audit + no FK' : 'Audit but no lineage',
+          value: `${t.schema}.${t.name}`,
+          context: { hasAudit: t.hasAudit, hasLineage: t.hasLineage, hasFk: t.hasFk },
+        })),
+        explanation: {
+          whatWasFound: `${affected} of ${totalObjects} ML-adjacent tables lack complete data lineage`,
+          whyItMatters: 'EU AI Act Article 12 requires automatic event recording across the AI system lifetime. Missing lineage makes compliance impossible',
+          howDetected: 'Identified ML-adjacent tables via naming heuristics, then checked for audit columns and source lineage metadata',
+        },
+      },
     }];
   },
 };
@@ -343,6 +388,9 @@ export const p8AiBiasAttributeDocumentation: ScannerCheck = {
       }
     }
 
+    const primaryCol = undocumented.length > 0 ? undocumented[0] : documentedButUncontrolled[0];
+    const allFlagged = undocumented.length > 0 ? undocumented : documentedButUncontrolled;
+
     return [{
       checkId: 'p8-ai-bias-attribute-documentation',
       property: 8,
@@ -357,6 +405,32 @@ export const p8AiBiasAttributeDocumentation: ScannerCheck = {
       remediation: ctx.remediation.aiBiasAttributeDocumentation,
       costCategories,
       costWeights,
+      evidenceInput: {
+        asset: {
+          type: 'column',
+          key: `${primaryCol.schema}.${primaryCol.table}.${primaryCol.column}`,
+          name: primaryCol.column,
+          schema: primaryCol.schema,
+          table: primaryCol.table,
+          column: primaryCol.column,
+        },
+        metric: {
+          name: 'bias_attribute_issues',
+          observed: affected,
+          unit: 'columns',
+          displayText: `${affected} of ${totalObjects} bias-relevant columns lack proper documentation or constraints`,
+        },
+        samples: allFlagged.slice(0, 10).map(c => ({
+          label: c.isDocumented ? 'Documented but uncontrolled' : `Undocumented${c.isNullable ? ' + nullable' : ''}`,
+          value: `${c.schema}.${c.table}.${c.column}`,
+          context: { isDocumented: c.isDocumented, isConstrained: c.isConstrained, isNullable: c.isNullable },
+        })),
+        explanation: {
+          whatWasFound: `${affected} of ${totalObjects} bias-relevant columns (demographic or proxy attributes) lack ${undocumented.length > 0 ? 'documentation' : 'value constraints'}`,
+          whyItMatters: 'EU AI Act Article 10 requires bias examination of training datasets. Undocumented or uncontrolled bias attributes create regulatory and discrimination risk',
+          howDetected: 'Matched column names against known demographic and proxy demographic patterns, then checked documentation and constraint metadata',
+        },
+      },
     }];
   },
 };
@@ -501,6 +575,31 @@ export const p8AiReproducibility: ScannerCheck = {
       remediation: ctx.remediation.aiReproducibility,
       costCategories,
       costWeights,
+      evidenceInput: {
+        asset: {
+          type: 'table',
+          key: `${zeroScoreTables[0].schema}.${zeroScoreTables[0].name}`,
+          name: zeroScoreTables[0].name,
+          schema: zeroScoreTables[0].schema,
+          table: zeroScoreTables[0].name,
+        },
+        relatedAssets: zeroScoreTables.slice(1, 20).map(t => ({
+          type: 'table' as const,
+          key: `${t.schema}.${t.name}`,
+          name: t.name,
+          schema: t.schema,
+          table: t.name,
+        })),
+        samples: zeroScoreTables.slice(0, 10).map(t => ({
+          label: 'Zero reproducibility score',
+          value: `${t.schema}.${t.name}`,
+        })),
+        explanation: {
+          whatWasFound: `${zeroScore} of ${totalObjects} tables have no reproducibility infrastructure (no timestamps, versioning, or deterministic PK)`,
+          whyItMatters: 'EU AI Act Articles 11-12 require technical documentation and record-keeping. Without reproducibility support, training runs cannot be recreated or audited',
+          howDetected: 'Scored each table on 3 reproducibility signals (temporal columns, versioning columns, deterministic integer PKs) and flagged tables scoring zero',
+        },
+      },
     }];
   },
 };

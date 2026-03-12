@@ -100,6 +100,30 @@ export const p3DomainOverlap: ScannerCheck = {
           'Use cross-schema views or FKs instead of duplicating tables.',
         costCategories: DOMAIN_OVERLAP_ACTIVE_CATEGORIES,
         costWeights: { ...DOMAIN_OVERLAP_COST_WEIGHTS },
+        evidenceInput: {
+          asset: {
+            type: 'schema',
+            key: sharedTables[0].schemas[0],
+            name: sharedTables[0].schemas[0],
+            schema: sharedTables[0].schemas[0],
+          },
+          metric: {
+            name: 'domain_overlap_tables',
+            observed: affectedCount,
+            unit: 'table names',
+            displayText: `${affectedCount} of ${totalDistinctNames} table names are duplicated across schemas`,
+          },
+          samples: sharedTables.slice(0, 10).map(st => ({
+            label: `In ${st.schemas.length} schemas: [${st.schemas.join(', ')}]`,
+            value: st.name,
+            context: { schemas: st.schemas.join(', ') },
+          })),
+          explanation: {
+            whatWasFound: `${affectedCount} table names appear in 2 or more schemas, indicating overlapping domain boundaries`,
+            whyItMatters: 'Duplicated table names across schemas create ambiguity about the authoritative data source and increase maintenance burden',
+            howDetected: 'Grouped all table names (case-insensitive) and identified names appearing in 2+ schemas',
+          },
+        },
       },
     ];
   },
@@ -194,6 +218,36 @@ export const p3CrossSchemaCoupling: ScannerCheck = {
           'Where cross-schema FKs are necessary, document them in a dependency map.',
         costCategories: CROSS_SCHEMA_ACTIVE_CATEGORIES,
         costWeights: { ...CROSS_SCHEMA_COST_WEIGHTS },
+        evidenceInput: {
+          asset: {
+            type: 'table',
+            key: `${crossSchemaFKs[0].schema}.${crossSchemaFKs[0].table}`,
+            name: crossSchemaFKs[0].table,
+            schema: crossSchemaFKs[0].schema,
+            table: crossSchemaFKs[0].table,
+          },
+          metric: {
+            name: 'cross_schema_fk_ratio',
+            observed: ratio,
+            unit: 'ratio',
+            displayText: `${crossCount} of ${totalFKs} foreign keys cross schema boundaries (${(ratio * 100).toFixed(1)}%)`,
+          },
+          threshold: {
+            value: 0.25,
+            operator: 'gt',
+            displayText: 'Cross-schema FK ratio above 25% indicates tight coupling',
+          },
+          samples: crossSchemaFKs.slice(0, 10).map(fk => ({
+            label: `${fk.schema} → ${fk.referencedSchema}`,
+            value: `${fk.schema}.${fk.table}.${fk.column} → ${fk.referencedSchema}.${fk.referencedTable}.${fk.referencedColumn}`,
+            context: { constraintName: fk.constraintName },
+          })),
+          explanation: {
+            whatWasFound: `${crossCount} of ${totalFKs} foreign keys (${(ratio * 100).toFixed(1)}%) reference tables in a different schema`,
+            whyItMatters: 'High cross-schema coupling makes independent schema evolution difficult and increases deployment risk',
+            howDetected: 'Compared source and referenced schema names on all foreign key constraints',
+          },
+        },
       },
     ];
   },

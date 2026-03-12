@@ -2,14 +2,23 @@ import type { Repository } from './db/repository';
 import type { DatabaseAdapter, SchemaData } from '../adapters/types';
 import type { ScannerConfig, Finding } from '../checks/types';
 import type { PipelineMapping } from '../types/pipeline';
+import type { ScanResultRepository } from './db/scan-result-repository';
+import type { NewResultFindingInput } from './db/scan-result-types';
 import { ALL_CHECKS, computeStrengths } from '../checks/index';
 import { checkMappingDrift } from '../checks/p1-mapping-drift';
 import { checkLineageGaps } from '../checks/p4-lineage-gaps';
 import { scoreFindings } from '../scoring/severity-scorer';
 import { mapToEngineInput } from '../scoring/mapper';
 import { calculateDALC } from '../engine/index';
+import { ENGINE_VERSION } from '../engine/constants';
 import { createMockSchema } from '../mock/schema-factory';
 import { EventEmitter } from 'events';
+import { buildFindingEvidence } from '../checks/evidence-builder';
+import type { ScanContext } from '../checks/evidence-builder';
+import type { FindingEvidence } from '../checks/finding-evidence';
+import { assessCriticality } from '../criticality';
+import { buildMethodologySummary } from '../methodology';
+import type { MethodologyBuilderInput } from '../methodology';
 
 export interface ScanProgress {
   scanId: string;
@@ -21,8 +30,15 @@ export interface ScanProgress {
 }
 
 export class ScanRunner extends EventEmitter {
+  private scanResultRepo: ScanResultRepository | null = null;
+
   constructor(private repo: Repository) {
     super();
+  }
+
+  /** Attach the persistent scan-result repository (optional — degrades gracefully). */
+  setScanResultRepo(scanResultRepo: ScanResultRepository): void {
+    this.scanResultRepo = scanResultRepo;
   }
 
   /**
@@ -175,9 +191,17 @@ export class ScanRunner extends EventEmitter {
         }
       }
 
-      // Get total cost from engine result
+      // Get total cost from engine result — derive low/base/high bands
       const totalCost = result.finalTotal;
       const amplificationRatio = result.amplificationRatio;
+
+      // DALC range derivation (from existing engine layers):
+      //   low  = adjustedTotal  (direct cost, before Leontief amplification)
+      //   base = finalTotal     (canonical DALC figure, amplified + sanity-bounded)
+      //   high = amplifiedTotal (full amplification, before sanity caps)
+      const dalcLowUsd  = result.adjustedTotal;
+      const dalcBaseUsd = result.finalTotal;
+      const dalcHighUsd = result.amplifiedTotal;
 
       this.repo.completeScan(scanId, {
         engineInput,
@@ -196,6 +220,187 @@ export class ScanRunner extends EventEmitter {
         dbVersion: schemaData.databaseVersion,
       });
 
+      // --- Step 7: Persist immutable result set (scan history) ---
+      if (this.scanResultRepo) {
+        try {
+          this.emitProgress(scanId, 0.95, 'Archiving', 'Persisting immutable result set...');
+
+          const scanRow = this.repo.getScan(scanId);
+          const projectId = scanRow?.project_id ?? '';
+          const adapterType = scanRow?.source ?? (isDryRun ? 'dry-run' : 'unknown');
+
+          const completedAt = new Date().toISOString();
+          const durationMs = Date.now() - startTime;
+
+          const resultSetId = this.scanResultRepo.createScanResultSet({
+            projectId,
+            scanId,
+            runLabel: `Scan ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`,
+            adapterType,
+            sourceName: schemaData.databaseVersion ?? undefined,
+            appVersion: '3.7.1',
+            rulesetVersion: '1.0',
+            dalcVersion: ENGINE_VERSION,
+            status: 'completed',
+            startedAt: new Date(startTime).toISOString(),
+            completedAt,
+            durationMs,
+            totalFindings: scored.findings.length,
+            criticalCount: severityCounts.critical,
+            majorCount: severityCounts.major,
+            minorCount: severityCounts.minor,
+            infoCount: severityCounts.info,
+            dalcTotalUsd: totalCost,
+            dalcBaseUsd,
+            dalcLowUsd,
+            dalcHighUsd,
+            amplificationRatio,
+            derivedApproach: engineInput.modellingApproach,
+            summary: {
+              schemaTables: totalTables,
+              schemaColumns: totalColumns,
+              schemaCount,
+              dbVersion: schemaData.databaseVersion,
+              pipelineFindings: pipelineFindings.length,
+              strengthsCount: strengths.length,
+            },
+          });
+
+          // Build scan context for evidence builder
+          const scanCtx: ScanContext = {
+            appVersion: '3.7.1',
+            rulesetVersion: '1.0',
+            adapterType,
+            sourceName: schemaData.databaseVersion ?? adapterType,
+            scanStartedAt: new Date(startTime).toISOString(),
+          };
+
+          // Map scored findings to NewResultFindingInput[]
+          const resultFindings: NewResultFindingInput[] = scored.findings.map((f: Finding) => {
+            // Build structured evidence if detector provided evidenceInput
+            let evidenceEnvelope: FindingEvidence | null = null;
+            let confidenceLevel: string | undefined;
+            let confidenceScore: number | undefined;
+            let explanation: string | undefined;
+            let whyItMatters: string | undefined;
+
+            if (f.evidenceInput) {
+              // Find the check name from ALL_CHECKS
+              const checkDef = ALL_CHECKS.find(c => c.id === f.checkId);
+              evidenceEnvelope = buildFindingEvidence({
+                ...f.evidenceInput,
+                checkId: f.checkId,
+                property: f.property,
+                checkName: checkDef?.name ?? f.checkId,
+                severity: f.severity,
+              }, scanCtx);
+
+              confidenceLevel = evidenceEnvelope.confidence.level;
+              confidenceScore = evidenceEnvelope.confidence.score;
+              explanation = evidenceEnvelope.explanation.whatWasFound;
+              whyItMatters = evidenceEnvelope.explanation.whyItMatters;
+            }
+
+            // Merge structured evidence into legacy evidence array for backward compat
+            const evidenceArray = evidenceEnvelope
+              ? [evidenceEnvelope, ...(f.evidence ?? [])]
+              : (f.evidence ?? []);
+
+            return {
+              checkId: f.checkId,
+              property: f.property,
+              severity: f.severity,
+              rawScore: f.rawScore,
+              title: f.title,
+              description: f.description,
+              assetType: f.evidenceInput?.asset?.type ?? undefined,
+              assetKey: f.evidenceInput?.asset?.key ?? f.evidence?.[0]?.table ?? undefined,
+              assetName: f.evidenceInput?.asset?.name ?? f.evidence?.[0]?.table ?? undefined,
+              affectedObjects: f.affectedObjects,
+              totalObjects: f.totalObjects,
+              ratio: f.ratio,
+              thresholdValue: f.evidenceInput?.threshold?.value ?? undefined,
+              observedValue: f.evidenceInput?.metric?.observed ?? undefined,
+              metricUnit: f.evidenceInput?.metric?.unit ?? undefined,
+              remediation: f.remediation,
+              evidence: evidenceArray,
+              costCategories: f.costCategories ?? [],
+              costWeights: f.costWeights ?? {},
+              confidenceLevel,
+              confidenceScore,
+              explanation,
+              whyItMatters,
+            };
+          });
+
+          this.scanResultRepo.bulkInsertFindings(resultSetId, projectId, resultFindings);
+
+          // --- Step 7b: Run criticality assessment ---
+          try {
+            const persistedFindings = this.scanResultRepo.getFindingsByResultSetId(resultSetId);
+            const sourceName = schemaData.databaseVersion ?? adapterType;
+            const criticalitySummary = assessCriticality({
+              resultSetId,
+              findings: persistedFindings,
+              sourceSystem: sourceName,
+            });
+            this.scanResultRepo.saveCriticalityAssessment(resultSetId, criticalitySummary);
+          } catch (critErr: any) {
+            console.warn(`[ScanRunner] Criticality assessment failed for ${scanId}:`, critErr.message);
+          }
+
+          // --- Step 7c: Build methodology summary ---
+          try {
+            const criticalityData = this.scanResultRepo.getCriticalityAssessment(resultSetId);
+            const methodologyInput: MethodologyBuilderInput = {
+              checksRun: totalChecks,
+              checksAvailable: ALL_CHECKS.length,
+              propertiesCovered: [...new Set(scored.findings.map((f: Finding) => f.property))].sort(),
+              totalTables,
+              totalColumns,
+              schemaCount,
+              adapterType,
+              hasPipelineMapping: !!(pipelineMapping && pipelineMapping.mappings.length > 0),
+              hasExternalLineage: false,
+              isDryRun: isDryRun || !adapter,
+              totalFindings: scored.findings.length,
+              severityCounts,
+              highSeverityWithEvidence: scored.findings.filter(
+                (f: Finding) => (f.severity === 'critical' || f.severity === 'major') && f.evidenceInput
+              ).length,
+              totalHighSeverity: severityCounts.critical + severityCounts.major,
+              derivedApproach: engineInput.modellingApproach,
+              configuredThresholds: {
+                entitySimilarityThreshold: config.thresholds?.entitySimilarityThreshold,
+                nullRateThreshold: config.thresholds?.nullRateThreshold,
+                canonicalInvestmentAUD: config.organisation?.canonicalInvestmentAUD,
+              },
+              criticalityContext: {
+                wasRun: !!criticalityData,
+                totalAssetsAssessed: criticalityData?.totalAssetsAssessed ?? 0,
+                signalTypesUsed: criticalityData
+                  ? new Set(criticalityData.allAssets?.flatMap(
+                      (a: any) => (a.signals ?? []).map((s: any) => s.signalType)
+                    ) ?? []).size
+                  : 0,
+                cdeIdentificationMethod: criticalityData
+                  ? (criticalityData.methodDescription?.includes('naming') ? 'naming-heuristic' : 'signal-composite')
+                  : 'none',
+                tierDistribution: criticalityData?.tierDistribution ?? {},
+              },
+            };
+
+            const methodologySummary = buildMethodologySummary(methodologyInput);
+            this.scanResultRepo.saveMethodologySummary(resultSetId, methodologySummary);
+          } catch (methErr: any) {
+            console.warn(`[ScanRunner] Methodology summary failed for ${scanId}:`, methErr.message);
+          }
+        } catch (archiveErr: any) {
+          // Non-fatal — the scan itself succeeded, result archiving is best-effort
+          console.warn(`[ScanRunner] Failed to archive result set for scan ${scanId}:`, archiveErr.message);
+        }
+      }
+
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
       this.emitProgress(scanId, 1.0, 'Complete',
         `Scan complete in ${elapsed}s — ${scored.findings.length} findings, estimated annual cost: $${(totalCost / 1_000_000).toFixed(1)}M`);
@@ -203,6 +408,43 @@ export class ScanRunner extends EventEmitter {
     } catch (error: any) {
       this.repo.failScan(scanId, error.message ?? String(error));
       this.emitProgress(scanId, -1, 'Failed', error.message ?? String(error));
+
+      // Persist a failed result set so history captures the attempt
+      if (this.scanResultRepo) {
+        try {
+          const scanRow = this.repo.getScan(scanId);
+          const projectId = scanRow?.project_id ?? '';
+          const adapterType = scanRow?.source ?? (isDryRun ? 'dry-run' : 'unknown');
+          const failedAt = new Date().toISOString();
+
+          this.scanResultRepo.createScanResultSet({
+            projectId,
+            scanId,
+            runLabel: `Scan ${failedAt.slice(0, 16).replace('T', ' ')} (failed)`,
+            adapterType,
+            appVersion: '3.7.1',
+            rulesetVersion: '1.0',
+            dalcVersion: ENGINE_VERSION,
+            status: 'failed',
+            startedAt: new Date(startTime).toISOString(),
+            completedAt: failedAt,
+            durationMs: Date.now() - startTime,
+            totalFindings: 0,
+            criticalCount: 0,
+            majorCount: 0,
+            minorCount: 0,
+            infoCount: 0,
+            dalcTotalUsd: 0,
+            amplificationRatio: 0,
+            summary: { error: error.message ?? String(error) },
+          });
+        } catch (archiveErr: unknown) {
+          // Best-effort — don't mask the original error
+          const msg = archiveErr instanceof Error ? archiveErr.message : String(archiveErr);
+          console.warn(`[ScanRunner] Failed to archive failed result set for scan ${scanId}:`, msg);
+        }
+      }
+
       throw error;
     }
   }

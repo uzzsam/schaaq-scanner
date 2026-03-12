@@ -12,6 +12,37 @@ export function formatCostFull(n: number | null | undefined): string {
   return '$' + Math.round(n).toLocaleString();
 }
 
+/**
+ * Format a DALC range as "low – high (base: X)".
+ * Falls back gracefully: if low/high are null, shows base only.
+ */
+export function formatDalcRange(
+  low: number | null | undefined,
+  base: number | null | undefined,
+  high: number | null | undefined,
+): string {
+  const b = base ?? 0;
+  if (low != null && high != null && low !== high) {
+    return `${formatCost(low)} – ${formatCost(high)} (base: ${formatCost(b)})`;
+  }
+  return formatCost(b);
+}
+
+/**
+ * Returns an abbreviated range string like "$1.2M – $3.4M" or just "$2.3M" if
+ * low/high are absent or equal.
+ */
+export function formatDalcRangeShort(
+  low: number | null | undefined,
+  high: number | null | undefined,
+  base: number | null | undefined,
+): string {
+  if (low != null && high != null && low !== high) {
+    return `${formatCost(low)} – ${formatCost(high)}`;
+  }
+  return formatCost(base ?? 0);
+}
+
 export function formatNumber(n: number): string {
   return n.toLocaleString();
 }

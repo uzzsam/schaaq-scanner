@@ -117,7 +117,7 @@ describe('ScanRunner', () => {
     for (const f of findings) {
       expect(f.check_id).toBeTruthy();
       expect(f.property).toBeGreaterThanOrEqual(1);
-      expect(f.property).toBeLessThanOrEqual(7);
+      expect(f.property).toBeLessThanOrEqual(8); // P1–P8 (AI Readiness added)
       expect(['critical', 'major', 'minor', 'info']).toContain(f.severity);
       expect(f.raw_score).toBeGreaterThanOrEqual(0);
       expect(f.raw_score).toBeLessThanOrEqual(1);
@@ -207,6 +207,6 @@ describe('ScanRunner', () => {
     const engineInput = JSON.parse(completed.engine_input_json!);
     expect(engineInput.sector).toBe('mining');
     expect(engineInput.findings).toBeDefined();
-    expect(engineInput.findings.length).toBe(7); // One per property
+    expect(engineInput.findings.length).toBe(8); // One per property (P1–P8)
   });
 });

@@ -116,6 +116,7 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
             ...(this.config.sslCaCert ? { ca: this.config.sslCaCert } : {}),
           }
         : false,
+      connectionTimeoutMillis: 15_000,
     };
   }
 

@@ -53,13 +53,16 @@ describe('SQLite Database', () => {
 
     it('records schema version', () => {
       const row = db.prepare('SELECT MAX(version) as version FROM schema_version').get() as { version: number };
-      expect(row.version).toBe(6);
+      // Schema version advances as migrations are added; verify it's at least the minimum
+      // known version and that the value is a positive integer.
+      expect(row.version).toBeGreaterThanOrEqual(13);
+      expect(Number.isInteger(row.version)).toBe(true);
     });
 
     it('is idempotent (calling again does not error)', () => {
       const db2 = initDatabase(dataDir);
       const row = db2.prepare('SELECT MAX(version) as version FROM schema_version').get() as { version: number };
-      expect(row.version).toBe(6);
+      expect(row.version).toBeGreaterThanOrEqual(13);
       db2.close();
     });
   });

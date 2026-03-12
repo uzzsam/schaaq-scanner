@@ -131,6 +131,41 @@ export const p7MissingAudit: ScannerCheck = {
         remediation: ctx.remediation.missingAudit,
         costCategories,
         costWeights,
+        evidenceInput: {
+          asset: {
+            type: 'table',
+            key: `${missingAudit[0].schema}.${missingAudit[0].name}`,
+            name: missingAudit[0].name,
+            schema: missingAudit[0].schema,
+            table: missingAudit[0].name,
+          },
+          relatedAssets: missingAudit.slice(1).map(t => ({
+            type: 'table' as const,
+            key: `${t.schema}.${t.name}`,
+            name: t.name,
+            schema: t.schema,
+            table: t.name,
+          })),
+          samples: missingAudit.slice(0, 10).map(t => {
+            const key = `${t.schema}.${t.name}`;
+            const colNames = columnsByTable.get(key) ?? [];
+            const hasCreated = hasMatchingColumn(colNames, CREATED_PATTERNS);
+            const hasUpdated = hasMatchingColumn(colNames, UPDATED_PATTERNS);
+            const missingTypes: string[] = [];
+            if (!hasCreated) missingTypes.push('created');
+            if (!hasUpdated) missingTypes.push('updated/modified');
+            return {
+              label: `Missing ${missingTypes.join(' and ')} audit columns`,
+              value: `${t.schema}.${t.name}`,
+              context: { hasCreated, hasUpdated },
+            };
+          }),
+          explanation: {
+            whatWasFound: `${affectedObjects} of ${totalObjects} tables lack standard audit columns (created/updated timestamps)`,
+            whyItMatters: 'Without audit columns, there is no record of when data was created or modified, making it impossible to trace changes for compliance, debugging, or forensic analysis',
+            howDetected: 'Checked each table for the presence of standard created_at/updated_at column patterns',
+          },
+        },
       },
     ];
   },
@@ -213,6 +248,31 @@ export const p7NoConstraints: ScannerCheck = {
         remediation: ctx.remediation.noConstraints,
         costCategories,
         costWeights,
+        evidenceInput: {
+          asset: {
+            type: 'table',
+            key: `${noConstraintTables[0].schema}.${noConstraintTables[0].name}`,
+            name: noConstraintTables[0].name,
+            schema: noConstraintTables[0].schema,
+            table: noConstraintTables[0].name,
+          },
+          relatedAssets: noConstraintTables.slice(1).map(t => ({
+            type: 'table' as const,
+            key: `${t.schema}.${t.name}`,
+            name: t.name,
+            schema: t.schema,
+            table: t.name,
+          })),
+          samples: noConstraintTables.slice(0, 10).map(t => ({
+            label: 'Table with no constraints',
+            value: `${t.schema}.${t.name}`,
+          })),
+          explanation: {
+            whatWasFound: `${affectedObjects} of ${totalObjects} tables have zero constraints (no PK, FK, CHECK, or UNIQUE)`,
+            whyItMatters: 'Without any constraints, the database cannot enforce data integrity rules, allowing invalid, duplicate, and orphaned data to accumulate',
+            howDetected: 'Checked constraint metadata for each table and identified those with no constraints of any type',
+          },
+        },
       },
     ];
   },

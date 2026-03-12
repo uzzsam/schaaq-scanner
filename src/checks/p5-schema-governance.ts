@@ -114,6 +114,30 @@ export const p5NamingViolations: ScannerCheck = {
         remediation: ctx.remediation.namingViolations,
         costCategories,
         costWeights,
+        evidenceInput: {
+          asset: {
+            type: 'schema',
+            key: violations[0].col.schema,
+            name: violations[0].col.schema,
+            schema: violations[0].col.schema,
+          },
+          metric: {
+            name: 'naming_violations',
+            observed: affectedObjects,
+            unit: 'columns',
+            displayText: `${affectedObjects} of ${totalObjects} columns deviate from dominant ${dominant} style`,
+          },
+          samples: violations.slice(0, 10).map(v => ({
+            label: `${v.style} (expected ${dominant})`,
+            value: `${v.col.schema}.${v.col.table}.${v.col.name}`,
+            context: { style: v.style, dominant },
+          })),
+          explanation: {
+            whatWasFound: `${affectedObjects} of ${totalObjects} columns (${(ratio * 100).toFixed(1)}%) deviate from the dominant naming convention "${dominant}"`,
+            whyItMatters: 'Inconsistent naming reduces developer productivity and increases the risk of errors when writing queries or building integrations',
+            howDetected: 'Classified all column names by naming style (snake_case, camelCase, PascalCase, UPPER_SNAKE) and identified deviations from the dominant pattern',
+          },
+        },
       },
     ];
   },
@@ -199,6 +223,31 @@ export const p5MissingPk: ScannerCheck = {
         remediation: ctx.remediation.missingPk,
         costCategories,
         costWeights,
+        evidenceInput: {
+          asset: {
+            type: 'table',
+            key: `${missing[0].schema}.${missing[0].name}`,
+            name: missing[0].name,
+            schema: missing[0].schema,
+            table: missing[0].name,
+          },
+          relatedAssets: missing.slice(1).map(t => ({
+            type: 'table' as const,
+            key: `${t.schema}.${t.name}`,
+            name: t.name,
+            schema: t.schema,
+            table: t.name,
+          })),
+          samples: missing.slice(0, 10).map(t => ({
+            label: 'Table missing primary key',
+            value: `${t.schema}.${t.name}`,
+          })),
+          explanation: {
+            whatWasFound: `${affectedObjects} of ${totalObjects} tables have no primary key constraint`,
+            whyItMatters: 'Without primary keys, rows cannot be uniquely identified, leading to duplicate data, failed joins, and unreliable ETL pipelines',
+            howDetected: 'Checked schema metadata for primary key constraint definitions on all tables',
+          },
+        },
       },
     ];
   },

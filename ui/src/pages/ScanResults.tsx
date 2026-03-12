@@ -3,7 +3,22 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   fetchScan, fetchFindings, fetchEngineResult, getExportHtmlUrl,
   fetchTransformFindings, uploadTransformFiles, fetchStrengths,
+  fetchResultSetByScanId, fetchResultFindingsDetail,
+  fetchCriticalityAssessment,
+  fetchMethodologySummary,
+  fetchTrendWindow,
+  fetchBenchmarkComparison,
+  fetchBlastRadius,
+  fetchManifest,
   type Scan, type Finding, type TransformFinding, type Strength,
+  type FindingDetailViewModel,
+  type CriticalityAssessmentSummary, type CriticalityTier,
+  type MethodologySummary,
+  type HistoricalComparisonWindow,
+  type BenchmarkSummary,
+  type BlastRadiusResponse,
+  type AssessmentManifest,
+  CRITICALITY_TIER_COLORS, CRITICALITY_TIER_LABELS,
 } from '../api/client';
 import { MetricCard, PageHeader, PrimaryButton, Card } from '../components/Shared';
 import { SeverityBadge } from '../components/SeverityBadge';
@@ -12,15 +27,94 @@ import { CostDisplay } from '../components/Badges';
 import { PropertyRadar } from '../components/PropertyRadar';
 import { SeverityDoughnut } from '../components/SeverityDoughnut';
 import { CostBreakdownChart } from '../components/CostBreakdownChart';
+import { ScanHistoryPanel } from '../components/ScanHistoryPanel';
+import { FindingDetailPanel } from '../components/FindingDetailPanel';
+import { RemediationPlanPanel } from '../components/RemediationPlanPanel';
+import { MethodologyPanel } from '../components/MethodologyPanel';
+import { TrendPanel } from '../components/TrendPanel';
+import { BenchmarkPanel } from '../components/BenchmarkPanel';
+import { BlastRadiusPanel } from '../components/BlastRadiusPanel';
+import { ManifestPanel } from '../components/ManifestPanel';
+import { useScanHistory } from '../hooks/useScanHistory';
 import {
-  formatCost, formatCostFull, PROPERTY_NAMES,
+  formatCost, formatCostFull, formatDalcRange, PROPERTY_NAMES,
   scoreColor, type SeverityKey,
 } from '../utils';
 import { ScanDetailSkeleton } from '../components/LoadingSkeleton';
 import { ErrorState } from '../components/ErrorState';
 
+// ---------------------------------------------------------------------------
+// Fallback: convert an in-memory Finding to a FindingDetailViewModel
+// Used when the scan hasn't been persisted yet (still running).
+// ---------------------------------------------------------------------------
+function findingToViewModel(f: Finding): FindingDetailViewModel {
+  return {
+    id: f.id,
+    checkId: f.check_id,
+    property: f.property,
+    severity: f.severity,
+    title: f.title,
+    description: f.description,
+    assetType: null,
+    assetKey: null,
+    assetName: null,
+    affectedObjects: f.affected_objects,
+    totalObjects: f.total_objects,
+    ratio: f.ratio,
+    ratioPercent: `${(f.ratio * 100).toFixed(1)}%`,
+    thresholdValue: null,
+    observedValue: null,
+    metricUnit: null,
+    thresholdDisplay: null,
+    whatWasFound: null,
+    whyItMatters: null,
+    howDetected: null,
+    confidenceLevel: null,
+    confidenceScore: null,
+    confidenceReason: null,
+    samples: [],
+    provenance: null,
+    remediation: f.remediation,
+    costCategories: f.costCategories ?? [],
+    costWeights: f.costWeights ?? {},
+    methodology: null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// CriticalityBadge — compact tier chip
+// ---------------------------------------------------------------------------
+function CriticalityBadge({ tier, size = 'sm' }: { tier: CriticalityTier; size?: 'sm' | 'md' }) {
+  const color = CRITICALITY_TIER_COLORS[tier];
+  const label = CRITICALITY_TIER_LABELS[tier];
+  const isMd = size === 'md';
+  return (
+    <span style={{
+      display: 'inline-block', fontSize: isMd ? 11 : 9, fontWeight: 700,
+      padding: isMd ? '2px 8px' : '1px 6px', borderRadius: 3, letterSpacing: '0.04em',
+      background: `${color}18`, color,
+      textTransform: 'uppercase',
+    }}>
+      {label}
+    </span>
+  );
+}
+
 // Sub-views
-type ViewMode = 'overview' | 'findings' | 'detail' | 'transforms';
+type ViewMode = 'overview' | 'findings' | 'detail' | 'transforms' | 'remediation' | 'methodology';
+
+/** Look up the criticality tier for a finding's primary table/asset. */
+function findingCriticalityTier(
+  f: Finding,
+  assessment: CriticalityAssessmentSummary | null,
+): CriticalityTier | null {
+  if (!assessment) return null;
+  // Finding evidence[0].table is the primary asset key
+  const assetKey = (f as any).evidence?.[0]?.table as string | undefined;
+  if (!assetKey) return null;
+  const match = assessment.allAssets.find(a => a.assetName === assetKey || a.assetKey === assetKey);
+  return match?.criticalityTier ?? null;
+}
 
 const TRANSFORM_ACCEPTED = '.csv,.tsv,.xlsx,.xls';
 
@@ -34,6 +128,9 @@ export function ScanResults() {
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<ViewMode>('overview');
   const [selectedFinding, setSelectedFinding] = useState<Finding | null>(null);
+  const [findingDetail, setFindingDetail] = useState<FindingDetailViewModel | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [resultSetId, setResultSetId] = useState<string | null>(null);
 
   // Strengths state
   const [strengths, setStrengths] = useState<Strength[]>([]);
@@ -55,6 +152,30 @@ export function ScanResults() {
   // Upload error banner
   const [uploadError, setUploadError] = useState<string | null>(null);
 
+  // Criticality assessment
+  const [criticality, setCriticality] = useState<CriticalityAssessmentSummary | null>(null);
+
+  // Methodology summary
+  const [methodology, setMethodology] = useState<MethodologySummary | null>(null);
+
+  // Trend data
+  const [trendData, setTrendData] = useState<HistoricalComparisonWindow | null>(null);
+
+  // Benchmark data
+  const [benchmarkData, setBenchmarkData] = useState<BenchmarkSummary | null>(null);
+
+  // Blast-radius data
+  const [blastRadiusData, setBlastRadiusData] = useState<BlastRadiusResponse | null>(null);
+
+  // Assessment manifest
+  const [manifestData, setManifestData] = useState<AssessmentManifest | null>(null);
+
+  // History panel toggle
+  const [showHistory, setShowHistory] = useState(false);
+
+  // Scan history — resolve projectId from the loaded scan
+  const scanHistory = useScanHistory(scan?.project_id, scanId);
+
   const loadScan = useCallback(() => {
     if (!scanId) return;
     setLoading(true);
@@ -66,12 +187,57 @@ export function ScanResults() {
       fetchTransformFindings(scanId).catch(() => []),
       fetchStrengths(scanId).catch(() => []),
     ])
-      .then(([s, f, r, tf, st]) => { setScan(s); setFindings(f); setEngineResult(r); setTransformFindings(tf); setStrengths(st); })
+      .then(([s, f, r, tf, st]) => {
+        setScan(s); setFindings(f); setEngineResult(r); setTransformFindings(tf); setStrengths(st);
+        // Resolve resultSetId for remediation plan + criticality
+        fetchResultSetByScanId(scanId!).then(rs => {
+          setResultSetId(rs.id);
+          fetchCriticalityAssessment(rs.id).then(c => setCriticality(c)).catch(() => {});
+          fetchMethodologySummary(rs.id).then(m => setMethodology(m)).catch(() => {});
+          fetchBenchmarkComparison(rs.id).then(b => setBenchmarkData(b)).catch(() => {});
+          fetchBlastRadius(rs.id).then(br => setBlastRadiusData(br)).catch(() => {});
+          fetchManifest(rs.id).then(m => setManifestData(m)).catch(() => {});
+        }).catch(() => {});
+        // Load trend data if we have a project
+        if (s.project_id) {
+          fetchTrendWindow(s.project_id, 10).then(t => setTrendData(t)).catch(() => {});
+        }
+      })
       .catch((err) => setError(err?.message ?? 'Failed to load scan results'))
       .finally(() => setLoading(false));
   }, [scanId]);
 
   useEffect(() => { loadScan(); }, [loadScan]);
+
+  // ---------------------------------------------------------------------------
+  // Open evidence detail for a finding
+  // Tries to load from persisted result_findings (full evidence envelope).
+  // Falls back to building a minimal view model from the in-memory Finding.
+  // ---------------------------------------------------------------------------
+  const openFindingDetail = useCallback(async (finding: Finding) => {
+    setSelectedFinding(finding);
+    setView('detail');
+    setDetailLoading(true);
+
+    try {
+      // Try to get the persisted result set for this scan
+      const resultSet = await fetchResultSetByScanId(scanId!);
+      const { findings: details } = await fetchResultFindingsDetail(resultSet.id);
+      // Match by check_id (unique per finding within a scan)
+      const match = details.find(d => d.checkId === finding.check_id);
+      if (match) {
+        setFindingDetail(match);
+        setDetailLoading(false);
+        return;
+      }
+    } catch {
+      // Result set may not exist yet (scan still running) — fall through
+    }
+
+    // Fallback: build a minimal view model from the in-memory Finding
+    setFindingDetail(findingToViewModel(finding));
+    setDetailLoading(false);
+  }, [scanId]);
 
   const handleTransformUpload = useCallback(async (files: FileList | File[]) => {
     if (!scanId || files.length === 0) return;
@@ -166,6 +332,8 @@ export function ScanResults() {
     { id: 'overview', label: 'Overview' },
     { id: 'findings', label: `Findings (${findings.length})` },
     { id: 'transforms', label: `Transforms${transformFindings.length > 0 ? ` (${transformFindings.length})` : ''}` },
+    { id: 'remediation', label: 'Remediation' },
+    ...(methodology ? [{ id: 'methodology', label: 'Methodology' }] : []),
   ];
 
   const selectStyle: React.CSSProperties = {
@@ -173,9 +341,35 @@ export function ScanResults() {
     borderRadius: 6, padding: '6px 10px', fontSize: 12, fontFamily: 'inherit', cursor: 'pointer', outline: 'none',
   };
 
-  // Detail view
+  // Detail view — evidence-rich panel
   if (view === 'detail' && selectedFinding) {
-    return <FindingDetail finding={selectedFinding} cost={getFindingCost(selectedFinding)} onBack={() => { setView('findings'); setSelectedFinding(null); }} />;
+    if (detailLoading) {
+      return (
+        <div>
+          <button
+            onClick={() => { setView('findings'); setSelectedFinding(null); setFindingDetail(null); }}
+            style={{ color: '#9CA3AF', fontSize: 12, background: 'none', border: 'none', cursor: 'pointer', marginBottom: 16, fontFamily: 'inherit' }}
+          >
+            ← Back to findings
+          </button>
+          <Card style={{ padding: 40, textAlign: 'center' }}>
+            <div style={{ color: '#9CA3AF', fontSize: 13 }}>Loading finding detail…</div>
+          </Card>
+        </div>
+      );
+    }
+    if (findingDetail) {
+      return (
+        <FindingDetailPanel
+          detail={findingDetail}
+          cost={getFindingCost(selectedFinding)}
+          criticalityTier={findingCriticalityTier(selectedFinding, criticality)}
+          onBack={() => { setView('findings'); setSelectedFinding(null); setFindingDetail(null); }}
+        />
+      );
+    }
+    // Fallback to legacy detail if somehow no view model (shouldn't happen)
+    return <FindingDetail finding={selectedFinding} cost={getFindingCost(selectedFinding)} onBack={() => { setView('findings'); setSelectedFinding(null); setFindingDetail(null); }} />;
   }
 
   return (
@@ -199,6 +393,18 @@ export function ScanResults() {
               {t.label}
             </button>
           ))}
+          <button
+            onClick={() => setShowHistory((v) => !v)}
+            data-testid="history-toggle"
+            style={{
+              padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 500, fontFamily: 'inherit',
+              border: 'none', cursor: 'pointer',
+              background: showHistory ? 'rgba(129,140,248,0.1)' : 'transparent',
+              color: showHistory ? '#818CF8' : '#9CA3AF',
+            }}
+          >
+            History{scanHistory.history.length > 0 ? ` (${scanHistory.history.length})` : ''}
+          </button>
           <a href={getExportHtmlUrl(scanId!)} download style={{
             background: 'rgba(16,185,129,0.1)', color: '#10B981', border: '1px solid rgba(16,185,129,0.25)',
             padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, textDecoration: 'none',
@@ -223,16 +429,146 @@ export function ScanResults() {
         </div>
       )}
 
+      {/* === HISTORY PANEL === */}
+      {showHistory && (
+        <ScanHistoryPanel
+          history={scanHistory.history}
+          selectedResultSetId={scanHistory.selectedResultSetId}
+          comparison={scanHistory.comparison}
+          loading={scanHistory.historyLoading}
+          onSelect={scanHistory.selectResultSet}
+        />
+      )}
+
+      {/* Loading indicator for result set switch */}
+      {scanHistory.resultLoading && (
+        <div style={{
+          background: 'rgba(129,140,248,0.08)', border: '1px solid rgba(129,140,248,0.2)',
+          borderRadius: 8, padding: '8px 16px', marginBottom: 12,
+          color: '#A5B4FC', fontSize: 12, textAlign: 'center',
+        }}>
+          Loading historical result set…
+        </div>
+      )}
+
       {/* === OVERVIEW === */}
       {view === 'overview' && (
         <>
           {/* Hero Metrics */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
-            <MetricCard label="Estimated Annual Cost" value={formatCostFull(totalCost)} color="#F59E0B" sub="of poor data architecture" />
+            <MetricCard
+              label="Estimated Annual Cost"
+              value={formatCostFull(totalCost)}
+              color="#F59E0B"
+              sub={(() => {
+                const low = engineResult?.adjustedTotal ?? engineResult?.result?.adjustedTotal;
+                const high = engineResult?.amplifiedTotal ?? engineResult?.result?.amplifiedTotal;
+                if (low != null && high != null && low !== high) {
+                  return `Range: ${formatDalcRange(low, totalCost, high)}`;
+                }
+                return 'of poor data architecture';
+              })()}
+            />
             <MetricCard label="Total Findings" value={scan.total_findings} color="#EF4444" sub={`${scan.critical_count} critical · ${scan.major_count} major`} />
             <MetricCard label="Tables Affected" value={`${tablesAffected} / ${scan.schema_tables ?? '?'}`} color="#818CF8" sub={`${scan.schema_tables ? Math.round(tablesAffected / scan.schema_tables * 100) : '?'}% of scanned tables`} />
             <MetricCard label="Architecture Health" value={`${avgScore}/100`} color={scoreColor(avgScore)} sub="across 8 properties" />
           </div>
+
+          {/* Asset Criticality Summary */}
+          {criticality && criticality.totalAssetsAssessed > 0 && (
+            <Card style={{ marginBottom: 20, overflow: 'hidden' }}>
+              <div style={{
+                padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)',
+                display: 'flex', alignItems: 'center', gap: 8,
+              }}>
+                <span style={{ fontSize: 14 }}>◆</span>
+                <span className="label-text" style={{ color: '#F59E0B' }}>Asset Criticality</span>
+                <span style={{ color: '#6B7280', fontSize: 11, marginLeft: 'auto' }}>
+                  {criticality.totalAssetsAssessed} assets assessed
+                </span>
+              </div>
+              <div style={{ padding: 16 }}>
+                {/* Tier distribution bar */}
+                <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
+                  {(['critical', 'high', 'medium', 'low'] as CriticalityTier[]).map((tier) => {
+                    const count = criticality.tierDistribution[tier] ?? 0;
+                    const pct = criticality.totalAssetsAssessed > 0
+                      ? Math.round((count / criticality.totalAssetsAssessed) * 100)
+                      : 0;
+                    return (
+                      <div key={tier} style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: CRITICALITY_TIER_COLORS[tier] }}>
+                            {CRITICALITY_TIER_LABELS[tier]}
+                          </span>
+                          <span style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF' }}>
+                            {count}
+                          </span>
+                        </div>
+                        <div style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.06)' }}>
+                          <div style={{
+                            height: '100%', borderRadius: 3,
+                            background: CRITICALITY_TIER_COLORS[tier],
+                            width: `${pct}%`,
+                            transition: 'width 0.3s ease',
+                          }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Summary stats */}
+                <div style={{ display: 'flex', gap: 24, marginBottom: 16 }}>
+                  <div>
+                    <div style={{ color: '#6B7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Avg Score</div>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 18, fontWeight: 700, color: '#E5E7EB' }}>
+                      {Math.round(criticality.averageCriticalityScore)}<span style={{ fontSize: 12, color: '#6B7280' }}>/100</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ color: '#6B7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>CDE Candidates</div>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 18, fontWeight: 700, color: '#EF4444' }}>
+                      {criticality.totalCdeCandidates}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ color: '#6B7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Critical Assets</div>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 18, fontWeight: 700, color: '#EF4444' }}>
+                      {criticality.tierDistribution.critical ?? 0}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Top critical assets list */}
+                {criticality.topCriticalAssets.length > 0 && (
+                  <div>
+                    <div style={{ color: '#6B7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+                      Top Critical Assets
+                    </div>
+                    {criticality.topCriticalAssets.slice(0, 5).map((asset) => (
+                      <div key={asset.assetKey} style={{
+                        display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0',
+                        borderBottom: '1px solid rgba(255,255,255,0.04)',
+                      }}>
+                        <CriticalityBadge tier={asset.criticalityTier} />
+                        <span style={{ color: '#E5E7EB', fontSize: 12, fontWeight: 500, flex: 1 }}>{asset.assetName}</span>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#9CA3AF' }}>
+                          {Math.round(asset.criticalityScore)}
+                        </span>
+                        {asset.cdeCandidate && (
+                          <span style={{
+                            fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3,
+                            background: 'rgba(239,68,68,0.1)', color: '#EF4444', letterSpacing: '0.05em',
+                          }}>CDE</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
 
           {/* What's Working Well */}
           {strengths.length > 0 && (
@@ -323,7 +659,7 @@ export function ScanResults() {
             </div>
             {[...findings].sort((a, b) => getFindingCost(b) - getFindingCost(a)).slice(0, 5).map((f, i) => (
               <div key={f.id}
-                onClick={() => { setSelectedFinding(f); setView('detail'); }}
+                onClick={() => openFindingDetail(f)}
                 style={{
                   padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12,
                   borderBottom: i < 4 ? '1px solid rgba(255,255,255,0.04)' : 'none',
@@ -335,12 +671,41 @@ export function ScanResults() {
                 <span style={{ fontFamily: "'JetBrains Mono', monospace", color: '#6B7280', fontSize: 11, width: 16 }}>{i + 1}</span>
                 <SeverityBadge severity={f.severity as SeverityKey} compact />
                 <PropertyBadge property={f.property} />
+                {(() => { const t = findingCriticalityTier(f, criticality); return t ? <CriticalityBadge tier={t} /> : null; })()}
                 <span style={{ color: '#E5E7EB', fontSize: 13, fontWeight: 500, flex: 1 }}>{f.title}</span>
                 <span style={{ color: '#6B7280', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>{f.affected_objects} objects</span>
                 <CostDisplay amount={getFindingCost(f)} size="sm" />
               </div>
             ))}
           </Card>
+
+          {/* Trend & Regression Panel */}
+          {trendData && trendData.windowSize >= 2 && (
+            <div style={{ marginTop: 20 }}>
+              <TrendPanel trend={trendData} />
+            </div>
+          )}
+
+          {/* Benchmark Comparison Panel */}
+          {benchmarkData && (
+            <div style={{ marginTop: 20 }}>
+              <BenchmarkPanel benchmark={benchmarkData} />
+            </div>
+          )}
+
+          {/* Economic Blast-Radius Panel */}
+          {blastRadiusData && (
+            <div style={{ marginTop: 20 }}>
+              <BlastRadiusPanel data={blastRadiusData} />
+            </div>
+          )}
+
+          {/* Assessment Manifest Panel */}
+          {manifestData && (
+            <div style={{ marginTop: 20 }}>
+              <ManifestPanel manifest={manifestData} />
+            </div>
+          )}
         </>
       )}
 
@@ -372,10 +737,11 @@ export function ScanResults() {
           </div>
 
           <Card>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 70px 50px 80px 90px', gap: 12, padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.02)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 70px 50px 60px 80px 90px', gap: 12, padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.02)' }}>
               <span className="label-text">Finding</span>
               <span className="label-text">Severity</span>
               <span className="label-text">Prop</span>
+              <span className="label-text">Crit.</span>
               <span className="label-text" style={{ textAlign: 'right' }}>Objects</span>
               <span className="label-text" style={{ textAlign: 'right' }}>Est. Cost/yr</span>
             </div>
@@ -389,9 +755,9 @@ export function ScanResults() {
               })
               .map((f, i, arr) => (
               <div key={f.id}
-                onClick={() => { setSelectedFinding(f); setView('detail'); }}
+                onClick={() => openFindingDetail(f)}
                 style={{
-                  display: 'grid', gridTemplateColumns: '1fr 70px 50px 80px 90px', gap: 12, padding: '12px 16px',
+                  display: 'grid', gridTemplateColumns: '1fr 70px 50px 60px 80px 90px', gap: 12, padding: '12px 16px',
                   borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
                   cursor: 'pointer', transition: 'background 0.1s', alignItems: 'center',
                 }}
@@ -401,6 +767,7 @@ export function ScanResults() {
                 <span style={{ color: '#E5E7EB', fontSize: 13, fontWeight: 500 }}>{f.title}</span>
                 <SeverityBadge severity={f.severity as SeverityKey} compact />
                 <PropertyBadge property={f.property} />
+                <span>{(() => { const t = findingCriticalityTier(f, criticality); return t ? <CriticalityBadge tier={t} /> : <span style={{ color: '#374151', fontSize: 9 }}>—</span>; })()}</span>
                 <span style={{ color: '#9CA3AF', fontSize: 12, fontFamily: "'JetBrains Mono', monospace", textAlign: 'right' }}>{f.affected_objects}</span>
                 <span style={{ fontFamily: "'JetBrains Mono', monospace", color: '#F59E0B', fontSize: 13, fontWeight: 600, textAlign: 'right' }}>{formatCost(getFindingCost(f))}</span>
               </div>
@@ -426,6 +793,16 @@ export function ScanResults() {
           setSeverityFilter={setTransformSeverityFilter}
           selectStyle={selectStyle}
         />
+      )}
+
+      {/* === REMEDIATION PLAN === */}
+      {view === 'remediation' && (
+        <RemediationPlanPanel resultSetId={resultSetId} />
+      )}
+
+      {/* === METHODOLOGY & CONFIDENCE === */}
+      {view === 'methodology' && methodology && (
+        <MethodologyPanel summary={methodology} />
       )}
     </div>
   );

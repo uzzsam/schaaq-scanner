@@ -5,6 +5,7 @@ import { resolve, join } from 'node:path';
 
 const PROJECT_ROOT = resolve(import.meta.dirname, '..', '..');
 const OUTPUT_DIR = join(PROJECT_ROOT, 'test-output-cli');
+const PKG_VERSION = JSON.parse(readFileSync(join(PROJECT_ROOT, 'package.json'), 'utf-8')).version as string;
 
 describe('CLI Dry-Run', () => {
   beforeEach(() => {
@@ -58,7 +59,7 @@ describe('CLI Dry-Run', () => {
     const data = JSON.parse(readFileSync(jsonPath, 'utf-8'));
 
     // Verify JSON structure
-    expect(data.version).toBe('3.0.0');
+    expect(data.version).toBe(PKG_VERSION);
     expect(data.organisation).toBe('Acme Mining Corp');
     expect(data.sector).toBe('mining');
     expect(data.engineResult).toBeDefined();
@@ -91,7 +92,7 @@ describe('CLI Dry-Run', () => {
       `npx tsx src/cli.ts --version`,
       { cwd: PROJECT_ROOT, encoding: 'utf-8', timeout: 15_000 },
     );
-    expect(result.trim()).toBe('3.0.0');
+    expect(result.trim()).toBe(PKG_VERSION);
   });
 
   it('shows help with --help', () => {

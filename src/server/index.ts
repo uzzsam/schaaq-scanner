@@ -8,9 +8,11 @@ import type Database from 'better-sqlite3';
 import { initDatabase } from './db/schema';
 import { initEncryptionKey } from './db/crypto';
 import { Repository } from './db/repository';
+import { ScanResultRepository } from './db/scan-result-repository';
 import { ScanRunner, type ScanProgress } from './scan-runner';
 import { projectRoutes } from './routes/projects';
 import { scanRoutes } from './routes/scans';
+import { scanResultRoutes } from './routes/scan-results';
 import { apiKeyAuth } from './middleware/auth';
 import { dashboardRoutes } from './routes/dashboard';
 import { settingsRoutes } from './routes/settings';
@@ -39,7 +41,9 @@ export function createServer(config: ServerConfig): {
   // Initialise database
   const db = initDatabase(config.dataDir);
   const repo = new Repository(db);
+  const scanResultRepo = new ScanResultRepository(db);
   const scanRunner = new ScanRunner(repo);
+  scanRunner.setScanResultRepo(scanResultRepo);
 
   // Active SSE connections per scan
   const sseConnections = new Map<string, Set<express.Response>>();
@@ -132,7 +136,8 @@ export function createServer(config: ServerConfig): {
   app.post('/api/projects', credentialLimiter);
   app.patch('/api/projects/:id', credentialLimiter);
   app.use('/api/projects', projectRoutes(repo));
-  app.use('/api/scans', scanRoutes(repo, scanRunner, sseConnections));
+  app.use('/api/scans', scanRoutes(repo, scanRunner, sseConnections, scanResultRepo));
+  app.use('/api/scan-results', scanResultRoutes(scanResultRepo));
   app.use('/api/settings', settingsRoutes(repo));
 
   // --- SSE endpoint for scan progress ---

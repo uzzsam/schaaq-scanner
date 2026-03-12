@@ -1,10 +1,18 @@
 import { Router } from 'express';
 import multer from 'multer';
 import type { Repository, ProjectRow } from '../db/repository';
+import type { ScanResultRepository } from '../db/scan-result-repository';
 import type { ScanRunner } from '../scan-runner';
 import type { ScannerConfig } from '../../checks/types';
 import type { Response as ExpressResponse } from 'express';
-import { buildReportData, generateReport } from '../../report/generator';
+import {
+  buildReportData,
+  generateReport,
+  buildExecutiveReportData,
+  buildTechnicalAppendixData,
+  generateExecutiveReport,
+  generateTechnicalReport,
+} from '../../report/generator';
 import { parseCsvFiles, type CsvFile } from '../../adapters/csv-adapter';
 import { parsePowerBITemplate } from '../../adapters/powerbi-adapter';
 import { parseTableauWorkbook } from '../../adapters/tableau-adapter';
@@ -18,6 +26,8 @@ import type { SchemaData } from '../../adapters/types';
 import type { PipelineMapping } from '../../types/pipeline';
 import { safeError } from '../middleware/safe-error';
 import { safeJsonParse } from '../../utils/safe-json';
+import { buildHistoricalComparisonWindow } from '../../trend';
+import { buildBenchmarkSummary, getPackForSector } from '../../benchmark';
 import { validateBody, validateQuery } from '../middleware/validate';
 import {
   validateUploadedFiles,
@@ -64,6 +74,7 @@ export function scanRoutes(
   repo: Repository,
   scanRunner: ScanRunner,
   sseConnections: Map<string, Set<ExpressResponse>>,
+  scanResultRepo?: ScanResultRepository,
 ): Router {
   const router = Router();
 
@@ -505,30 +516,19 @@ export function scanRoutes(
     }
   });
 
-  // Export scan as HTML report
-  router.get('/:id/export/html', (req, res) => {
-    try {
-      const scan = repo.getScan(req.params.id);
-      if (!scan) {
-        res.status(404).json({ error: 'Scan not found' });
-        return;
-      }
-      if (scan.status !== 'completed') {
-        res.status(400).json({ error: 'Scan not completed' });
-        return;
-      }
+  // =========================================================================
+  // Shared helper: reconstruct ScoredFindings from persisted DB records
+  // =========================================================================
+  function reconstructScoredFindings(scan: any) {
+    const findings = repo.getFindings(scan.id);
+    return {
+      findings: findings.map((f: any) => {
+        const evidenceJson = typeof f.evidence_json === 'string'
+          ? safeJsonParse<any>(f.evidence_json, null, 'scan_findings.evidence_json')
+          : null;
+        const envelope = evidenceJson?.schemaVersion === 1 ? evidenceJson : null;
 
-      const engineResult = safeJsonParse<any>(scan.engine_result_json!, null, 'scans.engine_result_json');
-      const configSnapshot = safeJsonParse<any>(scan.config_snapshot, null, 'scans.config_snapshot');
-      if (!engineResult || !configSnapshot) {
-        res.status(500).json({ error: 'Scan result data is corrupted' });
-        return;
-      }
-
-      // Reconstruct a ScoredFindings-like object for the report generator
-      const findings = repo.getFindings(scan.id);
-      const scoredFindings = {
-        findings: findings.map((f: any) => ({
+        return {
           checkId: f.check_id,
           property: f.property,
           severity: f.severity,
@@ -542,46 +542,135 @@ export function scanRoutes(
           remediation: f.remediation ?? '',
           costCategories: f.costCategories ?? [],
           costWeights: f.costWeights ?? {},
-        })),
-        propertyScores: new Map<number, number>(),
-        totalTables: scan.schema_tables ?? 0,
-        totalRowCount: 0,
-        zeroRowDowngrade: false,
-        complexityFloorApplied: false,
-      };
+          evidenceInput: envelope ? {
+            asset: {
+              type: envelope.asset?.assetType ?? 'database',
+              key: envelope.asset?.assetKey ?? '',
+              name: envelope.asset?.assetName ?? '',
+              schema: envelope.asset?.schemaName ?? '',
+            },
+            metric: envelope.metric ? {
+              name: envelope.metric.metricName,
+              observed: envelope.metric.observedValue,
+              unit: envelope.metric.unit,
+              displayText: envelope.metric.displayText,
+            } : undefined,
+            threshold: envelope.threshold ? {
+              value: envelope.threshold.thresholdValue,
+              operator: envelope.threshold.operator,
+              displayText: envelope.threshold.displayText,
+            } : undefined,
+            samples: envelope.samples ?? undefined,
+            confidence: envelope.confidence ?? undefined,
+            explanation: envelope.explanation ?? { whatWasFound: '', whyItMatters: '', howDetected: '' },
+          } : undefined,
+        };
+      }),
+      propertyScores: new Map<number, number>(),
+      totalTables: scan.schema_tables ?? 0,
+      totalRowCount: 0,
+      zeroRowDowngrade: false,
+      complexityFloorApplied: false,
+    };
+  }
 
-      // Fetch strengths for the report
-      const rawStrengths = repo.getStrengths(scan.id);
-      const strengths = rawStrengths.map((s: any) => ({
-        checkId: s.check_id,
-        property: s.property,
-        title: s.title,
-        description: s.description ?? '',
-        detail: s.detail ?? '',
-        metric: s.metric ?? undefined,
-      }));
+  function reconstructStrengths(scanId: string) {
+    return repo.getStrengths(scanId).map((s: any) => ({
+      checkId: s.check_id,
+      property: s.property,
+      title: s.title,
+      description: s.description ?? '',
+      detail: s.detail ?? '',
+      metric: s.metric ?? undefined,
+    }));
+  }
 
+  function loadCriticalityAssessment(scanId: string) {
+    if (!scanResultRepo) return undefined;
+    const resultSet = scanResultRepo.getResultSetByScanId(scanId);
+    if (!resultSet) return undefined;
+    return scanResultRepo.getCriticalityAssessment(resultSet.id) ?? undefined;
+  }
+
+  function loadTrendWindow(projectId: string) {
+    if (!scanResultRepo) return undefined;
+    return buildHistoricalComparisonWindow(scanResultRepo, projectId, 10) ?? undefined;
+  }
+
+  function loadBenchmarkSummary(scanId: string) {
+    if (!scanResultRepo) return undefined;
+    const resultSet = scanResultRepo.getResultSetByScanId(scanId);
+    if (!resultSet) return undefined;
+    return buildBenchmarkSummary(scanResultRepo, resultSet.id, getPackForSector(null)) ?? undefined;
+  }
+
+  function buildReportOptions(scan: any, settings: any, strengths: any[]) {
+    return {
+      strengths,
+      databaseLabel: scan.db_version || undefined,
+      consultantName: settings.consultant_name || undefined,
+      consultantTagline: settings.consultant_tagline || undefined,
+      consultantLogoBase64: settings.consultant_logo || undefined,
+      clientLogoBase64: settings.client_logo || undefined,
+      reportTitle: settings.report_title || undefined,
+      reportSubtitle: settings.report_subtitle || undefined,
+      criticalityAssessment: loadCriticalityAssessment(scan.id),
+      trendWindow: loadTrendWindow(scan.project_id),
+      benchmarkSummary: loadBenchmarkSummary(scan.id),
+    };
+  }
+
+  /**
+   * Generate HTML for a given format: 'executive' | 'technical' | legacy (default).
+   */
+  function generateHtmlForFormat(
+    format: string,
+    engineResult: any,
+    scoredFindings: any,
+    orgName: string,
+    source: string | undefined,
+    options: any,
+  ): string {
+    if (format === 'technical') {
+      const data = buildTechnicalAppendixData(engineResult, scoredFindings, orgName, source, options);
+      return generateTechnicalReport(data);
+    }
+    if (format === 'executive') {
+      const data = buildExecutiveReportData(engineResult, scoredFindings, orgName, source, options);
+      return generateExecutiveReport(data);
+    }
+    // Legacy default — original combined report
+    const data = buildReportData(engineResult, scoredFindings, orgName, source, options);
+    return generateReport(data);
+  }
+
+  // Export scan as HTML report
+  // ?format=executive (default) | technical
+  router.get('/:id/export/html', (req, res) => {
+    try {
+      const scan = repo.getScan(req.params.id);
+      if (!scan) { res.status(404).json({ error: 'Scan not found' }); return; }
+      if (scan.status !== 'completed') { res.status(400).json({ error: 'Scan not completed' }); return; }
+
+      const engineResult = safeJsonParse<any>(scan.engine_result_json!, null, 'scans.engine_result_json');
+      const configSnapshot = safeJsonParse<any>(scan.config_snapshot, null, 'scans.config_snapshot');
+      if (!engineResult || !configSnapshot) {
+        res.status(500).json({ error: 'Scan result data is corrupted' });
+        return;
+      }
+
+      const scoredFindings = reconstructScoredFindings(scan);
+      const strengths = reconstructStrengths(scan.id);
       const settings = repo.getAllSettings();
-      const reportData = buildReportData(
-        engineResult,
-        scoredFindings,
-        configSnapshot.organisation?.name ?? 'Unknown',
-        scan.source,
-        {
-          strengths,
-          databaseLabel: scan.db_version || undefined,
-          consultantName: settings.consultant_name || undefined,
-          consultantTagline: settings.consultant_tagline || undefined,
-          consultantLogoBase64: settings.consultant_logo || undefined,
-          clientLogoBase64: settings.client_logo || undefined,
-          reportTitle: settings.report_title || undefined,
-          reportSubtitle: settings.report_subtitle || undefined,
-        },
-      );
-      const html = generateReport(reportData);
+      const options = buildReportOptions(scan, settings, strengths);
 
+      const format = (req.query.format as string) ?? 'executive';
+      const orgName = configSnapshot.organisation?.name ?? 'Unknown';
+      const html = generateHtmlForFormat(format, engineResult, scoredFindings, orgName, scan.source, options);
+
+      const suffix = format === 'technical' ? 'technical' : 'executive';
       res.setHeader('Content-Type', 'text/html');
-      res.setHeader('Content-Disposition', `attachment; filename="dalc-report-${scan.id.slice(0, 8)}.html"`);
+      res.setHeader('Content-Disposition', `attachment; filename="dalc-${suffix}-${scan.id.slice(0, 8)}.html"`);
       res.send(html);
     } catch (err: any) {
       res.status(500).json({ error: safeError(err, 'GET /api/scans/:id/export/html') });
@@ -589,17 +678,12 @@ export function scanRoutes(
   });
 
   // Export scan as PDF report (server-side, for browser mode)
+  // ?format=executive (default) | technical
   router.get('/:id/export/pdf', async (req, res) => {
     try {
       const scan = repo.getScan(req.params.id);
-      if (!scan) {
-        res.status(404).json({ error: 'Scan not found' });
-        return;
-      }
-      if (scan.status !== 'completed') {
-        res.status(400).json({ error: 'Scan not completed' });
-        return;
-      }
+      if (!scan) { res.status(404).json({ error: 'Scan not found' }); return; }
+      if (scan.status !== 'completed') { res.status(400).json({ error: 'Scan not completed' }); return; }
 
       const engineResult = safeJsonParse<any>(scan.engine_result_json!, null, 'scans.engine_result_json');
       const configSnapshot = safeJsonParse<any>(scan.config_snapshot, null, 'scans.config_snapshot');
@@ -608,74 +692,24 @@ export function scanRoutes(
         return;
       }
 
-      // Reconstruct findings (same as HTML export)
-      const findings = repo.getFindings(scan.id);
-      const scoredFindings = {
-        findings: findings.map((f: any) => ({
-          checkId: f.check_id,
-          property: f.property,
-          severity: f.severity,
-          rawScore: f.raw_score,
-          title: f.title,
-          description: f.description ?? '',
-          evidence: f.evidence ?? [],
-          affectedObjects: f.affected_objects ?? 0,
-          totalObjects: f.total_objects ?? 0,
-          ratio: f.ratio ?? 0,
-          remediation: f.remediation ?? '',
-          costCategories: f.costCategories ?? [],
-          costWeights: f.costWeights ?? {},
-        })),
-        propertyScores: new Map<number, number>(),
-        totalTables: scan.schema_tables ?? 0,
-        totalRowCount: 0,
-        zeroRowDowngrade: false,
-        complexityFloorApplied: false,
-      };
-
-      // Fetch strengths
-      const rawStrengths = repo.getStrengths(scan.id);
-      const strengths = rawStrengths.map((s: any) => ({
-        checkId: s.check_id,
-        property: s.property,
-        title: s.title,
-        description: s.description ?? '',
-        detail: s.detail ?? '',
-        metric: s.metric ?? undefined,
-      }));
-
+      const scoredFindings = reconstructScoredFindings(scan);
+      const strengths = reconstructStrengths(scan.id);
       const pdfSettings = repo.getAllSettings();
-      const reportData = buildReportData(
-        engineResult,
-        scoredFindings,
-        configSnapshot.organisation?.name ?? 'Unknown',
-        scan.source,
-        {
-          strengths,
-          databaseLabel: scan.db_version || undefined,
-          consultantName: pdfSettings.consultant_name || undefined,
-          consultantTagline: pdfSettings.consultant_tagline || undefined,
-          consultantLogoBase64: pdfSettings.consultant_logo || undefined,
-          clientLogoBase64: pdfSettings.client_logo || undefined,
-          reportTitle: pdfSettings.report_title || undefined,
-          reportSubtitle: pdfSettings.report_subtitle || undefined,
-        },
-      );
-      const html = generateReport(reportData);
+      const options = buildReportOptions(scan, pdfSettings, strengths);
+
+      const format = (req.query.format as string) ?? 'executive';
+      const orgName = configSnapshot.organisation?.name ?? 'Unknown';
+      const html = generateHtmlForFormat(format, engineResult, scoredFindings, orgName, scan.source, options);
 
       // Try to use puppeteer-core with a system Chrome
       try {
         const { default: puppeteer } = await import('puppeteer-core');
 
-        // Try common Chrome/Chromium paths
         const chromePaths = [
-          // Windows
           'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
           'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
           process.env['CHROME_PATH'],
-          // macOS
           '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-          // Linux
           '/usr/bin/google-chrome',
           '/usr/bin/chromium-browser',
           '/usr/bin/chromium',
@@ -710,12 +744,12 @@ export function scanRoutes(
         });
         await browser.close();
 
+        const suffix = format === 'technical' ? 'technical' : 'executive';
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition',
-          `attachment; filename="schaaq-report-${scan.id.slice(0, 8)}.pdf"`);
+          `attachment; filename="schaaq-${suffix}-${scan.id.slice(0, 8)}.pdf"`);
         res.send(Buffer.from(pdfBuffer));
       } catch (_puppeteerErr) {
-        // puppeteer-core not available or Chrome not found
         res.status(501).json({
           error: 'PDF generation not available in browser mode.',
           hint: 'Use the Schaaq Desktop app for PDF export, or download the HTML report and print to PDF.',

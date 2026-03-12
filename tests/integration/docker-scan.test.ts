@@ -2,6 +2,10 @@
 // Docker Scan Integration Test
 // Spins up a real PostgreSQL via Testcontainers, seeds the fixture, and runs
 // the full DALC pipeline: adapter → checks → scorer → mapper → engine → report.
+//
+// INFRA-DEPENDENT: Requires Docker for Testcontainers.
+// Set DOCKER_TESTS=1 to run.  Skipped by default in local/CI environments
+// without Docker.
 // =============================================================================
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -39,7 +43,9 @@ const scannerConfig: ScannerConfig = {
   thresholds: {},
 };
 
-describe('Docker Scan Integration', () => {
+const DOCKER_AVAILABLE = process.env.DOCKER_TESTS === '1';
+
+describe.skipIf(!DOCKER_AVAILABLE)('Docker Scan Integration', () => {
   let container: StartedPostgreSqlContainer;
   let schemaData: SchemaData;
 

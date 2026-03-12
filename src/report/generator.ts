@@ -15,6 +15,19 @@ import Handlebars from 'handlebars';
 import type { DALCResult, CostVector, PropertyScore, YearProjection, FindingCostResult } from '../engine/types';
 import type { Finding, Strength } from '../checks/types';
 import type { ScoredFindings } from '../scoring/severity-scorer';
+import type { CriticalityTier } from '../criticality/types';
+import { CRITICALITY_TIER_COLORS, CRITICALITY_TIER_LABELS } from '../criticality/types';
+import type { BenchmarkPosition } from '../benchmark/types';
+import { BENCHMARK_POSITION_COLORS, BENCHMARK_POSITION_LABELS } from '../benchmark/types';
+import type { MethodologySummary } from '../methodology/types';
+import type { HistoricalComparisonWindow } from '../trend/types';
+import type { ReportTrendSummary, ReportRegressionDetail } from './types';
+import {
+  buildBlastRadiusGraph,
+  buildBlastRadiusSummary,
+  buildBlastRadiusDetail,
+} from '../blast-radius';
+import type { BlastRadiusFindingInput } from '../blast-radius';
 
 // =============================================================================
 // Display Mode — labels for technical vs executive audiences
@@ -70,6 +83,9 @@ export interface ReportData {
   finalTotal: number;
   baseTotal: number;
   amplifiedTotal: number;
+  dalcLowUsd: number;
+  dalcBaseUsd: number;
+  dalcHighUsd: number;
   annualSaving: number;
   paybackMonths: number;
   overallMaturity: number;
@@ -116,7 +132,34 @@ export interface ReportData {
     remediation: string;
     rawScore: number;
     costCategories: string[];
+    // Evidence fields (optional — available when evidenceInput populated)
+    assetName: string | null;
+    observedValue: number | null;
+    thresholdValue: number | null;
+    metricUnit: string | null;
+    whatWasFound: string | null;
+    whyItMatters: string | null;
+    confidenceLevel: string | null;
+    confidenceScore: number | null;
+    criticalityTier: CriticalityTier | null;
   }>;
+
+  // Asset criticality assessment (optional — available when criticality engine ran)
+  criticalityAssessment?: {
+    totalAssetsAssessed: number;
+    totalCdeCandidates: number;
+    averageCriticalityScore: number;
+    tierDistribution: Record<CriticalityTier, number>;
+    topCriticalAssets: Array<{
+      assetName: string;
+      assetType: string;
+      criticalityScore: number;
+      criticalityTier: CriticalityTier;
+      cdeCandidate: boolean;
+      tierColor: string;
+      tierLabel: string;
+    }>;
+  };
 
   // Strengths (What's Working Well)
   strengths: Array<{
@@ -196,6 +239,8 @@ export function buildReportData(
     reportSubtitle?: string;
     databaseLabel?: string;
     displayMode?: ReportDisplayMode;
+    criticalityAssessment?: import('../criticality/types').CriticalityAssessmentSummary;
+    methodologySummary?: MethodologySummary;
   },
 ): ReportData {
   const displayMode = options?.displayMode ?? 'executive';
@@ -237,21 +282,34 @@ export function buildReportData(
   }));
 
   // Scanner findings detail
-  const findings = scored.findings.map((f) => ({
-    checkId: f.checkId,
-    property: f.property,
-    severity: f.severity,
-    severityColor: SEVERITY_COLORS[f.severity] ?? '#95A5A6',
-    title: f.title,
-    description: f.description,
-    ratio: f.ratio,
-    ratioPercent: (f.ratio * 100).toFixed(1),
-    affectedObjects: f.affectedObjects,
-    totalObjects: f.totalObjects,
-    remediation: f.remediation,
-    rawScore: Math.round(f.rawScore * 100) / 100,
-    costCategories: f.costCategories,
-  }));
+  const findings = scored.findings.map((f) => {
+    const ei = f.evidenceInput;
+    return {
+      checkId: f.checkId,
+      property: f.property,
+      severity: f.severity,
+      severityColor: SEVERITY_COLORS[f.severity] ?? '#95A5A6',
+      title: f.title,
+      description: f.description,
+      ratio: f.ratio,
+      ratioPercent: (f.ratio * 100).toFixed(1),
+      affectedObjects: f.affectedObjects,
+      totalObjects: f.totalObjects,
+      remediation: f.remediation,
+      rawScore: Math.round(f.rawScore * 100) / 100,
+      costCategories: f.costCategories,
+      // Evidence fields — extracted from evidenceInput when available
+      assetName: ei?.asset?.name ?? null,
+      observedValue: ei?.metric?.observed ?? null,
+      thresholdValue: ei?.threshold?.value ?? null,
+      metricUnit: ei?.metric?.unit ?? null,
+      whatWasFound: ei?.explanation?.whatWasFound ?? null,
+      whyItMatters: ei?.explanation?.whyItMatters ?? null,
+      confidenceLevel: ei?.confidence?.level ?? null,
+      confidenceScore: ei?.confidence?.score ?? null,
+      criticalityTier: lookupCriticalityTier(ei?.asset?.key, options?.criticalityAssessment),
+    };
+  });
 
   // Severity counts
   const criticalCount = scored.findings.filter((f) => f.severity === 'critical').length;
@@ -277,6 +335,9 @@ export function buildReportData(
     finalTotal: result.finalTotal,
     baseTotal: result.baseTotal,
     amplifiedTotal: result.amplifiedTotal,
+    dalcLowUsd: result.adjustedTotal,
+    dalcBaseUsd: result.finalTotal,
+    dalcHighUsd: result.amplifiedTotal,
     annualSaving: result.annualSaving,
     paybackMonths: result.paybackMonths,
     overallMaturity: result.overallMaturity,
@@ -314,7 +375,43 @@ export function buildReportData(
     minorCount,
     infoCount,
 
+    criticalityAssessment: buildCriticalitySummaryForReport(options?.criticalityAssessment),
+
     l,
+  };
+}
+
+// =============================================================================
+// Criticality helpers
+// =============================================================================
+
+function lookupCriticalityTier(
+  assetKey: string | undefined,
+  assessment: import('../criticality/types').CriticalityAssessmentSummary | undefined,
+): CriticalityTier | null {
+  if (!assetKey || !assessment) return null;
+  const asset = assessment.allAssets?.find(a => a.assetKey === assetKey);
+  return asset?.criticalityTier ?? null;
+}
+
+function buildCriticalitySummaryForReport(
+  assessment: import('../criticality/types').CriticalityAssessmentSummary | undefined,
+): ReportData['criticalityAssessment'] | undefined {
+  if (!assessment) return undefined;
+  return {
+    totalAssetsAssessed: assessment.totalAssetsAssessed,
+    totalCdeCandidates: assessment.totalCdeCandidates,
+    averageCriticalityScore: assessment.averageCriticalityScore,
+    tierDistribution: assessment.tierDistribution,
+    topCriticalAssets: (assessment.topCriticalAssets ?? []).slice(0, 10).map(a => ({
+      assetName: a.assetName,
+      assetType: a.assetType,
+      criticalityScore: a.criticalityScore,
+      criticalityTier: a.criticalityTier,
+      cdeCandidate: a.cdeCandidate,
+      tierColor: CRITICALITY_TIER_COLORS[a.criticalityTier],
+      tierLabel: CRITICALITY_TIER_LABELS[a.criticalityTier],
+    })),
   };
 }
 
@@ -340,6 +437,15 @@ function registerHelpers(): void {
     return value.toFixed(1) + '%';
   });
 
+  Handlebars.registerHelper('inc', (value: number) => {
+    return (value ?? 0) + 1;
+  });
+
+  Handlebars.registerHelper('pctRatio', (value: number) => {
+    if (value === undefined || value === null) return '0%';
+    return Math.round(value * 100) + '%';
+  });
+
   Handlebars.registerHelper('fixed1', (value: number) => {
     if (value === undefined || value === null) return '0.0';
     return value.toFixed(1);
@@ -350,8 +456,41 @@ function registerHelpers(): void {
     return value.toFixed(2);
   });
 
+  // DALC range helper: renders "low – high" or empty if degenerate
+  Handlebars.registerHelper('dalcRange', function (this: any) {
+    const low = this.dalcLowUsd;
+    const high = this.dalcHighUsd;
+    if (low == null || high == null || low === high) return '';
+    const fmt = (v: number) => {
+      if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
+      if (v >= 1_000) return `$${(v / 1_000).toFixed(0)}K`;
+      return `$${v.toFixed(0)}`;
+    };
+    return new Handlebars.SafeString(
+      `<div class="unit" style="margin-top:2px;font-size:11px;color:#888;">Range: ${Handlebars.Utils.escapeExpression(fmt(low))} – ${Handlebars.Utils.escapeExpression(fmt(high))}</div>`
+    );
+  });
+
   Handlebars.registerHelper('uppercase', (value: string) => {
     return value ? value.toUpperCase() : '';
+  });
+
+  Handlebars.registerHelper('eq', (a: unknown, b: unknown) => a === b);
+
+  Handlebars.registerHelper('ifEq', function (this: unknown, a: unknown, b: unknown, options: Handlebars.HelperOptions) {
+    return a === b ? options.fn(this) : options.inverse(this);
+  });
+
+  Handlebars.registerHelper('ownerLabel', (ownerType: string) => {
+    const labels: Record<string, string> = {
+      'data-engineer': 'Data Engineer',
+      'data-architect': 'Data Architect',
+      'data-steward': 'Data Steward',
+      'dba': 'DBA',
+      'analytics-engineer': 'Analytics Engineer',
+      'compliance-officer': 'Compliance Officer',
+    };
+    return labels[ownerType] ?? ownerType;
   });
 
   Handlebars.registerHelper('severityBadge', (severity: string) => {
@@ -361,6 +500,26 @@ function registerHelpers(): void {
     return new Handlebars.SafeString(
       `<span class="badge" style="background:${escapedColor}">${escapedSeverity.toUpperCase()}</span>`
     );
+  });
+
+  Handlebars.registerHelper('criticalityBadge', (tier: string | null | undefined) => {
+    if (!tier) return '';
+    const escapedTier = Handlebars.Utils.escapeExpression(tier);
+    const color = CRITICALITY_TIER_COLORS[tier as CriticalityTier] ?? '#6b7280';
+    const escapedColor = Handlebars.Utils.escapeExpression(color);
+    const label = CRITICALITY_TIER_LABELS[tier as CriticalityTier] ?? tier;
+    const escapedLabel = Handlebars.Utils.escapeExpression(label);
+    return new Handlebars.SafeString(
+      `<span class="badge" style="background:${escapedColor};font-size:9px;padding:2px 6px">${escapedLabel.toUpperCase()}</span>`
+    );
+  });
+
+  Handlebars.registerHelper('benchmarkPositionColor', (position: BenchmarkPosition) => {
+    return BENCHMARK_POSITION_COLORS[position] ?? '#6B7280';
+  });
+
+  Handlebars.registerHelper('benchmarkPositionLabel', (position: BenchmarkPosition) => {
+    return BENCHMARK_POSITION_LABELS[position] ?? 'Unknown';
   });
 
   // Radar chart SVG helper
@@ -771,6 +930,7 @@ h3 { font-size: 16px; font-weight: 600; color: var(--c-primary); margin-bottom: 
       <div class="label">{{l.annualDisorderCost}}</div>
       <div class="value">{{currency finalTotal}}</div>
       <div class="unit">{{l.amplifiedUnit}}</div>
+      {{dalcRange}}
     </div>
     <div class="metric-card">
       <div class="label">{{l.baseCost}}</div>
@@ -932,8 +1092,12 @@ h3 { font-size: 16px; font-weight: 600; color: var(--c-primary); margin-bottom: 
         <td><strong>P{{property}}</strong></td>
         <td>{{{severityBadge severity}}}</td>
         <td>
-          <strong>{{title}}</strong><br>
-          {{description}}
+          <strong>{{title}}</strong>
+          {{#if assetName}}<br><small style="color:#818CF8">{{assetName}}</small>{{/if}}
+          {{#if whatWasFound}}<br>{{whatWasFound}}{{else}}<br>{{description}}{{/if}}
+          {{#if whyItMatters}}<div style="margin-top:4px;color:#6B7280;font-size:11px"><em>{{whyItMatters}}</em></div>{{/if}}
+          {{#if observedValue}}<div style="margin-top:4px;font-size:11px;color:#9CA3AF">Observed: {{observedValue}}{{#if metricUnit}} {{metricUnit}}{{/if}}{{#if thresholdValue}} · Threshold: {{thresholdValue}}{{#if metricUnit}} {{metricUnit}}{{/if}}{{/if}}</div>{{/if}}
+          {{#if confidenceLevel}}<div style="margin-top:2px;font-size:10px;color:#9CA3AF">Confidence: {{confidenceLevel}}{{#if confidenceScore}} ({{confidenceScore}}){{/if}}</div>{{/if}}
           <div class="remediation">{{remediation}}</div>
         </td>
         <td>{{affectedObjects}}/{{totalObjects}}<br><small>({{ratioPercent}}%)</small></td>
@@ -982,4 +1146,475 @@ export function generateReportFromResult(
 ): string {
   const data = buildReportData(result, scored, organisationName, source, options);
   return generateReport(data);
+}
+
+// =============================================================================
+// Two-Layer Report System — Executive Board Pack + Technical Appendix
+// =============================================================================
+
+import type { ExecutiveReportData, TechnicalAppendixData, MethodologyRegisterEntry } from './types';
+import { deriveRemediationPriorities, METHOD_LIMITS } from './remediation';
+import { getAllMethodologies } from '../checks/methodology-register';
+import { buildRemediationPlan, type ParsedFinding } from '../remediation';
+import { EXECUTIVE_TEMPLATE } from './executive-template';
+import { TECHNICAL_TEMPLATE } from './technical-template';
+
+/**
+ * Convert ReportData findings into ParsedFinding shape for the remediation planner.
+ * ReportData findings lack some ResultFindingRow DB fields; we fill in sensible defaults.
+ */
+function reportFindingsToParsed(
+  findings: ReportData['findings'],
+): ParsedFinding[] {
+  return findings.map((f, idx) => {
+    const costCategories = f.costCategories ?? [];
+    // Build uniform cost weights from category list (equal weight per category)
+    const weight = costCategories.length > 0 ? 1 / costCategories.length : 0;
+    const costWeights: Record<string, number> = {};
+    for (const cat of costCategories) {
+      costWeights[cat] = weight;
+    }
+
+    return {
+      // ResultFindingRow fields
+      id: idx + 1,
+      result_set_id: 'report',
+      project_id: 'report',
+      check_id: f.checkId,
+      property: f.property,
+      severity: f.severity,
+      raw_score: f.rawScore,
+      title: f.title,
+      description: f.description ?? null,
+      asset_type: null,
+      asset_key: null,
+      asset_name: f.assetName ?? null,
+      affected_objects: f.affectedObjects,
+      total_objects: f.totalObjects,
+      ratio: f.ratio,
+      threshold_value: f.thresholdValue ?? null,
+      observed_value: f.observedValue ?? null,
+      metric_unit: f.metricUnit ?? null,
+      remediation: f.remediation ?? null,
+      evidence_json: '[]',
+      cost_categories_json: JSON.stringify(costCategories),
+      cost_weights_json: JSON.stringify(costWeights),
+      confidence_level: f.confidenceLevel ?? null,
+      confidence_score: f.confidenceScore ?? null,
+      explanation: null,
+      why_it_matters: f.whyItMatters ?? null,
+      // ParsedFinding parsed fields
+      costCategories,
+      costWeights,
+    };
+  });
+}
+
+const PROPERTY_NAMES_MAP: Record<number, string> = {
+  1: 'Semantic Identity',
+  2: 'Reference Data',
+  3: 'Domain Ownership',
+  4: 'Anti-Corruption',
+  5: 'Schema Governance',
+  6: 'Quality Measurement',
+  7: 'Regulatory Traceability',
+  8: 'AI Readiness',
+};
+
+// =============================================================================
+// Trend data builders for reports
+// =============================================================================
+
+const DIRECTION_LABELS: Record<string, string> = {
+  improving: 'Improving',
+  worsening: 'Worsening',
+  stable: 'Stable',
+  insufficient_data: 'Insufficient Data',
+};
+
+const DIRECTION_COLORS: Record<string, string> = {
+  improving: '#22c55e',
+  worsening: '#ef4444',
+  stable: '#94a3b8',
+  insufficient_data: '#94a3b8',
+};
+
+const SEVERITY_COLORS_MAP: Record<string, string> = {
+  critical: '#ef4444',
+  major: '#f97316',
+  minor: '#eab308',
+  info: '#3b82f6',
+};
+
+const DELTA_STATUS_LABELS: Record<string, string> = {
+  new: 'New',
+  resolved: 'Resolved',
+  worsened: 'Worsened',
+  improved: 'Improved',
+  unchanged: 'Unchanged',
+};
+
+function buildReportTrendSummary(trendWindow: HistoricalComparisonWindow): ReportTrendSummary | undefined {
+  if (trendWindow.windowSize < 2 || !trendWindow.regressionVsPrevious) return undefined;
+
+  const reg = trendWindow.regressionVsPrevious;
+  return {
+    overallDirection: reg.overallDirection,
+    directionLabel: DIRECTION_LABELS[reg.overallDirection] ?? 'Unknown',
+    directionColor: DIRECTION_COLORS[reg.overallDirection] ?? '#94a3b8',
+    dalcDirection: trendWindow.dalcTrend.direction,
+    dalcDirectionLabel: DIRECTION_LABELS[trendWindow.dalcTrend.direction] ?? 'Unknown',
+    dalcDirectionColor: DIRECTION_COLORS[trendWindow.dalcTrend.direction] ?? '#94a3b8',
+    dalcPercentChange: trendWindow.dalcTrend.percentChange,
+    windowSize: trendWindow.windowSize,
+    deltaCounts: {
+      new: reg.counts.new,
+      resolved: reg.counts.resolved,
+      worsened: reg.counts.worsened,
+      improved: reg.counts.improved,
+      unchanged: reg.counts.unchanged,
+    },
+  };
+}
+
+function buildReportRegressionDetail(trendWindow: HistoricalComparisonWindow): ReportRegressionDetail | undefined {
+  if (trendWindow.windowSize < 2 || !trendWindow.regressionVsPrevious) return undefined;
+
+  const reg = trendWindow.regressionVsPrevious;
+  const mapDelta = (d: typeof reg.topRegressions[number]) => ({
+    checkId: d.checkId,
+    title: d.title,
+    property: d.property,
+    propertyName: PROPERTY_NAMES_MAP[d.property] ?? `P${d.property}`,
+    status: d.status,
+    statusLabel: DELTA_STATUS_LABELS[d.status] ?? d.status,
+    currentSeverity: d.currentSeverity,
+    previousSeverity: d.previousSeverity,
+    severityColor: SEVERITY_COLORS_MAP[d.currentSeverity] ?? '#94a3b8',
+  });
+
+  return {
+    targetLabel: reg.targetLabel,
+    baselineLabel: reg.baselineLabel,
+    targetTimestamp: reg.targetTimestamp,
+    baselineTimestamp: reg.baselineTimestamp,
+    overallDirection: reg.overallDirection,
+    directionLabel: DIRECTION_LABELS[reg.overallDirection] ?? 'Unknown',
+    directionColor: DIRECTION_COLORS[reg.overallDirection] ?? '#94a3b8',
+    deltaCounts: reg.counts,
+    topRegressions: reg.topRegressions.map(mapDelta),
+    topImprovements: reg.topImprovements.map(mapDelta),
+    dalcDelta: {
+      baselineBaseUsd: reg.dalcDelta.baselineBaseUsd,
+      targetBaseUsd: reg.dalcDelta.targetBaseUsd,
+      changeBaseUsd: reg.dalcDelta.changeBaseUsd,
+      percentChange: reg.dalcDelta.percentChange,
+    },
+  };
+}
+
+/**
+ * Build methodology register entries enriched with property names.
+ */
+function buildMethodologyRegister(): MethodologyRegisterEntry[] {
+  return getAllMethodologies().map(m => ({
+    ...m,
+    propertyName: PROPERTY_NAMES_MAP[m.property] ?? `P${m.property}`,
+  }));
+}
+
+/**
+ * Build Executive Board Pack data from base ReportData.
+ * Adds top risks, remediation priorities, method limits, coverage summary.
+ */
+export function buildExecutiveReportData(
+  result: DALCResult,
+  scored: ScoredFindings,
+  organisationName: string,
+  source?: string,
+  options?: Parameters<typeof buildReportData>[4] & {
+    totalChecksRun?: number;
+    trendWindow?: HistoricalComparisonWindow;
+    benchmarkSummary?: import('../benchmark/types').BenchmarkSummary;
+    includeBlastRadius?: boolean;
+  },
+): ExecutiveReportData {
+  const base = buildReportData(result, scored, organisationName, source, {
+    ...options,
+    displayMode: 'executive',
+  });
+
+  // Top risks: critical + major, sorted by rawScore desc, max 5
+  const topRisks = [...base.findings]
+    .filter((f) => f.severity === 'critical' || f.severity === 'major')
+    .sort((a, b) => b.rawScore - a.rawScore)
+    .slice(0, 5);
+
+  // Remediation priorities from findings (legacy per-finding)
+  const remediationPriorities = deriveRemediationPriorities(base.findings);
+
+  // Grouped remediation actions from planner
+  const pseudoFindings = reportFindingsToParsed(base.findings);
+  const plan = buildRemediationPlan({
+    resultSetId: 'report',
+    findings: pseudoFindings,
+    dalcLowUsd: base.dalcLowUsd,
+    dalcBaseUsd: base.dalcBaseUsd,
+    dalcHighUsd: base.dalcHighUsd,
+  });
+
+  // Coverage summary
+  const checksRun = options?.totalChecksRun ?? 21;
+  const propertiesCovered = new Set(base.findings.map((f) => f.property)).size;
+  const coverageSummary = `${checksRun} checks across ${propertiesCovered} properties`;
+
+  // Criticality summary for executive audience (condensed)
+  const criticalitySummary = base.criticalityAssessment ? {
+    totalAssetsAssessed: base.criticalityAssessment.totalAssetsAssessed,
+    totalCdeCandidates: base.criticalityAssessment.totalCdeCandidates,
+    averageCriticalityScore: base.criticalityAssessment.averageCriticalityScore,
+    tierDistribution: base.criticalityAssessment.tierDistribution,
+    topCriticalAssets: base.criticalityAssessment.topCriticalAssets.slice(0, 5).map(a => ({
+      assetName: a.assetName,
+      criticalityTier: a.criticalityTier,
+      tierColor: a.tierColor,
+      tierLabel: a.tierLabel,
+      cdeCandidate: a.cdeCandidate,
+    })),
+  } : undefined;
+
+  // Blast-radius summary (optional — uses findings + finalCosts from DALC)
+  let blastRadiusSummary: ExecutiveReportData['blastRadiusSummary'];
+  if (options?.includeBlastRadius !== false && base.findings.length > 0) {
+    const brFindings: BlastRadiusFindingInput[] = pseudoFindings.map(f => ({
+      checkId: f.check_id,
+      property: f.property,
+      severity: f.severity,
+      raw_score: f.raw_score,
+      costCategories: f.costCategories,
+      costWeights: f.costWeights,
+    }));
+    const brGraph = buildBlastRadiusGraph(brFindings, result.finalCosts as unknown as Record<string, number>);
+    blastRadiusSummary = buildBlastRadiusSummary(brGraph);
+  }
+
+  return {
+    ...base,
+    reportMode: 'executive',
+    topRisks,
+    remediationPriorities,
+    remediationActions: plan.actions.slice(0, 5),
+    methodLimits: METHOD_LIMITS,
+    methodologyRegister: buildMethodologyRegister(),
+    coverageSummary,
+    methodologySummary: options?.methodologySummary,
+    trendSummary: options?.trendWindow ? buildReportTrendSummary(options.trendWindow) : undefined,
+    benchmarkSummary: options?.benchmarkSummary,
+    blastRadiusSummary,
+    criticalitySummary,
+  };
+}
+
+/**
+ * Build Technical Appendix data from base ReportData.
+ * Adds assessment metadata, findings-by-property, DALC explanation, coverage detail.
+ */
+export function buildTechnicalAppendixData(
+  result: DALCResult,
+  scored: ScoredFindings,
+  organisationName: string,
+  source?: string,
+  options?: Parameters<typeof buildReportData>[4] & {
+    appVersion?: string;
+    rulesetVersion?: string;
+    dalcVersion?: string;
+    adapterType?: string;
+    scanDuration?: string;
+    startedAt?: string;
+    completedAt?: string;
+    totalChecksRun?: number;
+    schemasScanned?: number;
+    columnsScanned?: number;
+    trendWindow?: HistoricalComparisonWindow;
+    benchmarkSummary?: import('../benchmark/types').BenchmarkSummary;
+    includeBlastRadius?: boolean;
+    resultSetId?: string;
+    manifestStatus?: string;
+    schemaVersion?: number;
+    projectScanCount?: number;
+  },
+): TechnicalAppendixData {
+  const base = buildReportData(result, scored, organisationName, source, {
+    ...options,
+    displayMode: 'technical',
+  });
+
+  // Group findings by property
+  const propertyMap = new Map<number, typeof base.findings>();
+  for (const f of base.findings) {
+    const arr = propertyMap.get(f.property) ?? [];
+    arr.push(f);
+    propertyMap.set(f.property, arr);
+  }
+
+  const findingsByProperty = result.propertyScores.map((ps, idx) => {
+    const propNum = idx + 1;
+    return {
+      propertyNumber: propNum,
+      propertyName: PROPERTY_NAMES_MAP[propNum] ?? ps.name,
+      propertyScore: ps.score,
+      maturityLabel: ps.maturityLabel,
+      findings: propertyMap.get(propNum) ?? [],
+    };
+  });
+
+  // Assessment metadata
+  const assessmentMetadata = {
+    appVersion: options?.appVersion ?? 'unknown',
+    rulesetVersion: options?.rulesetVersion ?? 'v1.0.0',
+    dalcVersion: result.engineVersion,
+    adapterType: options?.adapterType ?? (source ?? 'database'),
+    scanDuration: options?.scanDuration,
+    startedAt: options?.startedAt,
+    completedAt: options?.completedAt,
+    totalChecksRun: options?.totalChecksRun ?? 21,
+    totalStrengths: base.strengths.length,
+  };
+
+  // DALC explanation
+  const dalcExplanation = {
+    dalcLowUsd: base.dalcLowUsd,
+    dalcBaseUsd: base.dalcBaseUsd,
+    dalcHighUsd: base.dalcHighUsd,
+    spectralRadius: result.spectralRadius,
+    amplificationRatio: result.amplificationRatio,
+    shannonEntropy: result.shannonEntropy,
+    maxEntropy: result.maxEntropy,
+    baseTotal: result.baseTotal,
+    adjustedTotal: result.adjustedTotal,
+    amplifiedTotal: result.amplifiedTotal,
+    sanityCapped: result.sanityCapped,
+  };
+
+  // Coverage detail
+  const checksWithFindings = new Set(base.findings.map((f) => f.checkId)).size;
+  const propertiesCovered = new Set(base.findings.map((f) => f.property)).size;
+  const coverageDetail = {
+    schemasScanned: options?.schemasScanned ?? 1,
+    tablesScanned: base.totalTables,
+    columnsScanned: options?.columnsScanned ?? 0,
+    checksRun: options?.totalChecksRun ?? 21,
+    checksWithFindings,
+    propertiesCovered,
+  };
+
+  // Grouped remediation actions from planner
+  const pseudoFindings = reportFindingsToParsed(base.findings);
+  const techPlan = buildRemediationPlan({
+    resultSetId: 'report',
+    findings: pseudoFindings,
+    dalcLowUsd: base.dalcLowUsd,
+    dalcBaseUsd: base.dalcBaseUsd,
+    dalcHighUsd: base.dalcHighUsd,
+  });
+
+  // Criticality detail for technical audience (full)
+  const criticalityDetail = base.criticalityAssessment ? {
+    totalAssetsAssessed: base.criticalityAssessment.totalAssetsAssessed,
+    totalCdeCandidates: base.criticalityAssessment.totalCdeCandidates,
+    averageCriticalityScore: base.criticalityAssessment.averageCriticalityScore,
+    tierDistribution: base.criticalityAssessment.tierDistribution,
+    topCriticalAssets: base.criticalityAssessment.topCriticalAssets.map(a => ({
+      assetName: a.assetName,
+      assetType: a.assetType,
+      criticalityScore: a.criticalityScore,
+      criticalityTier: a.criticalityTier,
+      tierColor: a.tierColor,
+      tierLabel: a.tierLabel,
+      cdeCandidate: a.cdeCandidate,
+    })),
+  } : undefined;
+
+  // Blast-radius summary + detail (optional — full edge table for technical audience)
+  let blastRadiusSummary: TechnicalAppendixData['blastRadiusSummary'];
+  let blastRadiusDetail: TechnicalAppendixData['blastRadiusDetail'];
+  if (options?.includeBlastRadius !== false && base.findings.length > 0) {
+    const brFindings: BlastRadiusFindingInput[] = pseudoFindings.map(f => ({
+      checkId: f.check_id,
+      property: f.property,
+      severity: f.severity,
+      raw_score: f.raw_score,
+      costCategories: f.costCategories,
+      costWeights: f.costWeights,
+    }));
+    const brGraph = buildBlastRadiusGraph(brFindings, result.finalCosts as unknown as Record<string, number>);
+    blastRadiusSummary = buildBlastRadiusSummary(brGraph);
+    blastRadiusDetail = buildBlastRadiusDetail(brGraph);
+  }
+
+  // Reproducibility manifest summary (optional — audit trail for technical audience)
+  const componentLabels = [
+    'Core Findings', 'Criticality', 'Methodology', 'Trend Data',
+    'Benchmark', 'Blast Radius', 'Remediation',
+  ];
+  const componentAvailable = [
+    base.findings.length > 0,
+    !!criticalityDetail,
+    !!options?.methodologySummary,
+    !!(options?.trendWindow),
+    !!options?.benchmarkSummary,
+    !!blastRadiusSummary,
+    base.findings.length > 0,
+  ];
+  const manifestSummary = options?.resultSetId ? {
+    manifestVersion: '1.0.0',
+    generatedAt: new Date().toISOString(),
+    schemaVersion: options?.schemaVersion ?? 13,
+    status: options?.manifestStatus ?? 'completed',
+    componentAvailability: componentLabels.map((label, i) => ({
+      label,
+      available: componentAvailable[i],
+    })),
+    propertiesCovered: coverageDetail.propertiesCovered,
+    totalProperties: 8,
+    amplificationRatio: result.amplificationRatio,
+    resultSetId: options.resultSetId,
+  } : undefined;
+
+  return {
+    ...base,
+    reportMode: 'technical',
+    remediationActions: techPlan.actions,
+    methodologyRegister: buildMethodologyRegister(),
+    methodologySummary: options?.methodologySummary,
+    trendSummary: options?.trendWindow ? buildReportTrendSummary(options.trendWindow) : undefined,
+    benchmarkSummary: options?.benchmarkSummary,
+    blastRadiusSummary,
+    blastRadiusDetail,
+    regressionDetail: options?.trendWindow ? buildReportRegressionDetail(options.trendWindow) : undefined,
+    manifestSummary,
+    assessmentMetadata,
+    findingsByProperty,
+    dalcExplanation,
+    coverageDetail,
+    criticalityDetail,
+  };
+}
+
+/**
+ * Generate Executive Board Pack HTML.
+ */
+export function generateExecutiveReport(data: ExecutiveReportData): string {
+  registerHelpers();
+  const template = Handlebars.compile(EXECUTIVE_TEMPLATE);
+  return template(data);
+}
+
+/**
+ * Generate Technical Appendix HTML.
+ */
+export function generateTechnicalReport(data: TechnicalAppendixData): string {
+  registerHelpers();
+  const template = Handlebars.compile(TECHNICAL_TEMPLATE);
+  return template(data);
 }

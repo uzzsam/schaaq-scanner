@@ -1,4 +1,5 @@
 import type { SchemaData } from '../adapters/types';
+import type { EvidenceBuilderInput } from './evidence-builder';
 
 // =============================================================================
 // Cost categories matching the engine's 5-category model
@@ -39,6 +40,8 @@ export interface Finding {
   remediation: string;
   costCategories: CostCategory[];
   costWeights: Record<CostCategory, number>;
+  /** Structured evidence input — populated by retrofitted detectors, assembled into full envelope by scan runner */
+  evidenceInput?: Omit<EvidenceBuilderInput, 'checkId' | 'property' | 'severity' | 'checkName'>;
 }
 
 // =============================================================================

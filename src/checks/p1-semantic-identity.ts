@@ -242,6 +242,24 @@ export const p1SemanticIdentity: ScannerCheck = {
 
       const ratio = totalStems > 0 ? memberArray.length / totalStems : 0;
 
+      // Build evidenceInput samples: each stem with representative source column
+      const eiSamples: Array<{ label: string; value: string; context?: Record<string, string | number | boolean> }> = [];
+      for (const stem of memberArray) {
+        const sources = stemSources.get(stem);
+        if (sources) {
+          const firstSource = Array.from(sources)[0];
+          eiSamples.push({
+            label: `Stem "${stem}"`,
+            value: firstSource,
+            context: { stem, sourceCount: sources.size },
+          });
+        }
+        if (eiSamples.length >= 10) break;
+      }
+
+      // Primary asset: first evidence entry's schema
+      const firstEvidence = evidence[0];
+
       findings.push({
         checkId: 'P1-SEMANTIC-IDENTITY',
         property: 1,
@@ -260,6 +278,26 @@ export const p1SemanticIdentity: ScannerCheck = {
           'Create a naming convention guide and refactor column names to use the canonical form.',
         costCategories: ACTIVE_COST_CATEGORIES,
         costWeights: { ...COST_WEIGHTS },
+        evidenceInput: {
+          asset: {
+            type: 'schema',
+            key: firstEvidence.schema,
+            name: firstEvidence.schema,
+            schema: firstEvidence.schema,
+          },
+          metric: {
+            name: 'variant_count',
+            observed: variantCount,
+            unit: 'stems',
+            displayText: `${variantCount} variant stems refer to the same logical entity`,
+          },
+          samples: eiSamples,
+          explanation: {
+            whatWasFound: `${variantCount} variant stems refer to the same logical entity: [${memberArray.join(', ')}]`,
+            whyItMatters: 'Entity name variants increase integration cost, create ambiguity in data models, and reduce data discoverability across the organisation',
+            howDetected: 'Extracted entity stems from column names, then clustered using synonym groups and Levenshtein similarity analysis',
+          },
+        },
       });
     }
 

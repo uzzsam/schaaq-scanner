@@ -155,6 +155,31 @@ export const p4CsvImportPattern: ScannerCheck = {
         remediation: ctx.remediation.csvImportPattern,
         costCategories: CSV_IMPORT_ACTIVE_CATEGORIES,
         costWeights: { ...CSV_IMPORT_COST_WEIGHTS },
+        evidenceInput: {
+          asset: {
+            type: 'table',
+            key: `${Array.from(affectedTables.values())[0].schema}.${Array.from(affectedTables.values())[0].table}`,
+            name: Array.from(affectedTables.values())[0].table,
+            schema: Array.from(affectedTables.values())[0].schema,
+            table: Array.from(affectedTables.values())[0].table,
+          },
+          metric: {
+            name: 'csv_import_tables',
+            observed: affectedCount,
+            unit: 'tables',
+            displayText: `${affectedCount} of ${totalTables} tables match CSV/import naming patterns`,
+          },
+          samples: Array.from(affectedTables.values()).slice(0, 10).map(at => ({
+            label: `Patterns: [${at.matchedPatterns.join(', ')}]`,
+            value: `${at.schema}.${at.table}`,
+            context: { matchedPatterns: at.matchedPatterns.join(', ') },
+          })),
+          explanation: {
+            whatWasFound: `${affectedCount} of ${totalTables} tables have names or columns matching ad-hoc import patterns (staging, raw, csv, tmp, etc.)`,
+            whyItMatters: 'Ad-hoc CSV imports that bypass proper ETL integration introduce unvalidated data, schema drift, and compliance gaps',
+            howDetected: 'Matched table and column names against a configurable list of CSV/import indicator patterns',
+          },
+        },
       },
     ];
   },
@@ -259,6 +284,31 @@ export const p4IslandTables: ScannerCheck = {
         remediation: ctx.remediation.islandTables,
         costCategories: ISLAND_TABLES_ACTIVE_CATEGORIES,
         costWeights: { ...ISLAND_TABLES_COST_WEIGHTS },
+        evidenceInput: {
+          asset: {
+            type: 'table',
+            key: `${islands[0].schema}.${islands[0].table}`,
+            name: islands[0].table,
+            schema: islands[0].schema,
+            table: islands[0].table,
+          },
+          relatedAssets: islands.slice(1).map(isl => ({
+            type: 'table' as const,
+            key: `${isl.schema}.${isl.table}`,
+            name: isl.table,
+            schema: isl.schema,
+            table: isl.table,
+          })),
+          samples: islands.slice(0, 10).map(isl => ({
+            label: 'Table with no FK relationships',
+            value: `${isl.schema}.${isl.table}`,
+          })),
+          explanation: {
+            whatWasFound: `${affectedCount} of ${totalCount} tables have no foreign key relationships (neither as source nor target)`,
+            whyItMatters: 'Island tables represent disconnected data that cannot be joined to the rest of the model without ad-hoc logic, increasing maintenance cost and data quality risk',
+            howDetected: 'Cross-referenced all tables against foreign key metadata to identify tables not participating in any FK relationship',
+          },
+        },
       },
     ];
   },
@@ -361,6 +411,43 @@ export const p4WideTables: ScannerCheck = {
         remediation: ctx.remediation.wideTables,
         costCategories: WIDE_TABLES_ACTIVE_CATEGORIES,
         costWeights: { ...WIDE_TABLES_COST_WEIGHTS },
+        evidenceInput: {
+          asset: {
+            type: 'table',
+            key: `${wideTables[0].schema}.${wideTables[0].table}`,
+            name: wideTables[0].table,
+            schema: wideTables[0].schema,
+            table: wideTables[0].table,
+          },
+          metric: {
+            name: 'wide_tables',
+            observed: affectedCount,
+            unit: 'tables',
+            displayText: `${affectedCount} of ${totalTables} tables have 30+ columns`,
+          },
+          threshold: {
+            value: 30,
+            operator: 'gte',
+            displayText: 'Tables with 30 or more columns are considered wide',
+          },
+          relatedAssets: wideTables.slice(1).map(wt => ({
+            type: 'table' as const,
+            key: `${wt.schema}.${wt.table}`,
+            name: wt.table,
+            schema: wt.schema,
+            table: wt.table,
+          })),
+          samples: wideTables.slice(0, 10).map(wt => ({
+            label: `${wt.columnCount} columns`,
+            value: `${wt.schema}.${wt.table}`,
+            context: { columnCount: wt.columnCount },
+          })),
+          explanation: {
+            whatWasFound: `${affectedCount} of ${totalTables} tables have 30 or more columns`,
+            whyItMatters: 'Wide tables typically indicate denormalized "god tables" that conflate multiple concerns, making them harder to maintain, query, and evolve',
+            howDetected: 'Counted columns per table and identified those with 30+ columns, sorted by column count descending',
+          },
+        },
       },
     ];
   },

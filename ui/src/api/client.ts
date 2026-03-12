@@ -517,3 +517,893 @@ export function subscribeScanProgress(
 
   return () => es.close();
 }
+
+// ---------------------------------------------------------------------------
+// Scan Result Types (persistent scan history)
+// ---------------------------------------------------------------------------
+
+/** Lightweight list item for the scan history sidebar/table */
+export interface ScanHistoryListItem {
+  resultSetId: string;
+  scanId: string | null;
+  projectId: string;
+  runLabel: string;
+  adapterType: string;
+  sourceName: string | null;
+  appVersion: string;
+  dalcVersion: string;
+  status: string;
+  startedAt: string;
+  completedAt: string | null;
+  durationMs: number | null;
+  totalFindings: number;
+  criticalCount: number;
+  majorCount: number;
+  minorCount: number;
+  infoCount: number;
+  dalcTotalUsd: number;
+  dalcBaseUsd: number | null;
+  dalcLowUsd: number | null;
+  dalcHighUsd: number | null;
+  amplificationRatio: number;
+  derivedApproach: string | null;
+  createdAt: string;
+}
+
+export interface FindingDiffEntry {
+  checkId: string;
+  severity: string;
+  assetKey: string | null;
+  title: string;
+}
+
+/** Comparison between latest and previous scan */
+export interface ScanSummaryComparison {
+  latest: ScanHistoryListItem;
+  previous: ScanHistoryListItem | null;
+  delta: {
+    totalFindings: number;
+    criticalCount: number;
+    majorCount: number;
+    minorCount: number;
+    infoCount: number;
+    dalcTotalUsd: number;
+    dalcBaseUsd: number | null;
+    dalcLowUsd: number | null;
+    dalcHighUsd: number | null;
+    amplificationRatio: number;
+  } | null;
+  findingsDiff: {
+    added: FindingDiffEntry[];
+    removed: FindingDiffEntry[];
+    unchanged: number;
+  } | null;
+}
+
+/** Finding row from a persisted result set */
+export interface ResultFinding {
+  id: number;
+  result_set_id: string;
+  project_id: string;
+  check_id: string;
+  property: number;
+  severity: SeverityLevel;
+  raw_score: number;
+  title: string;
+  description: string | null;
+  asset_type: string | null;
+  asset_key: string | null;
+  asset_name: string | null;
+  affected_objects: number;
+  total_objects: number;
+  ratio: number;
+  threshold_value: number | null;
+  observed_value: number | null;
+  metric_unit: string | null;
+  remediation: string | null;
+  evidence: unknown[];
+  costCategories: string[];
+  costWeights: Record<string, number>;
+  // v11 evidence columns
+  confidence_level: string | null;
+  confidence_score: number | null;
+  explanation: string | null;
+  why_it_matters: string | null;
+}
+
+/** Sample evidence item from the evidence envelope */
+export interface FindingSampleItem {
+  label: string;
+  value: string;
+  context?: Record<string, string | number | boolean>;
+}
+
+/** Provenance info from the evidence envelope */
+export interface FindingProvenanceInfo {
+  adapterType: string;
+  sourceName: string;
+  sourceFingerprint?: string;
+  extractedAt: string;
+}
+
+/** Methodology card attached to a finding for auditability */
+export interface FindingMethodologyInfo {
+  technique: 'deterministic' | 'heuristic' | 'statistical';
+  methodology: string;
+  assumptions: string[];
+  limitations: string[];
+  dataInputs: string[];
+  references: string[];
+}
+
+/** UI-ready view model for a single finding's full evidence detail */
+export interface FindingDetailViewModel {
+  id: number;
+  checkId: string;
+  property: number;
+  severity: string;
+  title: string;
+  description: string | null;
+  assetType: string | null;
+  assetKey: string | null;
+  assetName: string | null;
+  affectedObjects: number;
+  totalObjects: number;
+  ratio: number;
+  ratioPercent: string;
+  thresholdValue: number | null;
+  observedValue: number | null;
+  metricUnit: string | null;
+  thresholdDisplay: string | null;
+  whatWasFound: string | null;
+  whyItMatters: string | null;
+  howDetected: string | null;
+  confidenceLevel: string | null;
+  confidenceScore: number | null;
+  confidenceReason: string | null;
+  samples: FindingSampleItem[];
+  provenance: FindingProvenanceInfo | null;
+  remediation: string | null;
+  costCategories: string[];
+  costWeights: Record<string, number>;
+  methodology: FindingMethodologyInfo | null;
+}
+
+/** Result set with parsed summary */
+export interface ScanResultSet {
+  id: string;
+  project_id: string;
+  scan_id: string | null;
+  run_label: string;
+  adapter_type: string;
+  source_name: string | null;
+  status: string;
+  started_at: string;
+  completed_at: string | null;
+  duration_ms: number | null;
+  total_findings: number;
+  critical_count: number;
+  major_count: number;
+  minor_count: number;
+  info_count: number;
+  dalc_total_usd: number;
+  dalc_base_usd: number | null;
+  dalc_low_usd: number | null;
+  dalc_high_usd: number | null;
+  amplification_ratio: number;
+  derived_approach: string | null;
+  summary: Record<string, unknown>;
+  created_at: string;
+}
+
+// ---------------------------------------------------------------------------
+// Scan Results API
+// ---------------------------------------------------------------------------
+
+export async function fetchScanHistory(
+  projectId: string,
+  limit: number = 50,
+): Promise<{ items: ScanHistoryListItem[]; total: number }> {
+  return request(`/scan-results/project/${projectId}/history?limit=${limit}`);
+}
+
+export async function fetchScanComparison(
+  projectId: string,
+): Promise<ScanSummaryComparison> {
+  return request(`/scan-results/project/${projectId}/comparison`);
+}
+
+export async function fetchResultSetById(
+  id: string,
+): Promise<ScanResultSet> {
+  return request(`/scan-results/${id}`);
+}
+
+export async function fetchResultSetByScanId(
+  scanId: string,
+): Promise<ScanResultSet> {
+  return request(`/scan-results/by-scan/${scanId}`);
+}
+
+export async function fetchResultFindings(
+  resultSetId: string,
+): Promise<{ resultSetId: string; findings: ResultFinding[] }> {
+  return request(`/scan-results/${resultSetId}/findings`);
+}
+
+export async function fetchResultFindingsDetail(
+  resultSetId: string,
+): Promise<{ resultSetId: string; findings: FindingDetailViewModel[] }> {
+  return request(`/scan-results/${resultSetId}/findings-detail`);
+}
+
+export async function fetchFindingDetail(
+  findingId: number,
+): Promise<FindingDetailViewModel> {
+  return request(`/scan-results/findings/${findingId}`);
+}
+
+// ---------------------------------------------------------------------------
+// Remediation Plan
+// ---------------------------------------------------------------------------
+
+export type RemediationEffortBand = 'S' | 'M' | 'L';
+export type RemediationOwnerType =
+  | 'data-engineer'
+  | 'data-architect'
+  | 'data-steward'
+  | 'dba'
+  | 'analytics-engineer'
+  | 'compliance-officer';
+export type RemediationConfidenceLevel = 'high' | 'medium' | 'low';
+export type RemediationSequenceGroup = 1 | 2 | 3;
+
+export interface RemediationAction {
+  id: string;
+  resultSetId: string;
+  title: string;
+  description: string;
+  rationale: string;
+  theme: string;
+  relatedFindingIds: string[];
+  relatedFindingCodes: string[];
+  affectedAssets: number;
+  priorityRank: number;
+  priorityScore: number;
+  severityWeight: number;
+  estimatedImpactUsd: { low: number; base: number; high: number };
+  effortBand: RemediationEffortBand;
+  likelyOwnerType: RemediationOwnerType;
+  sequenceGroup: RemediationSequenceGroup;
+  blockedByActionIds: string[];
+  quickWin: boolean;
+  confidenceLevel: RemediationConfidenceLevel;
+  explanation: string;
+}
+
+export interface RemediationPlan {
+  resultSetId: string;
+  generatedAt: string;
+  actions: RemediationAction[];
+  totalEstimatedImpactUsd: { low: number; base: number; high: number };
+  quickWinCount: number;
+  sequenceGroups: Array<{
+    group: RemediationSequenceGroup;
+    label: string;
+    actionIds: string[];
+  }>;
+}
+
+export async function fetchRemediationPlan(
+  resultSetId: string,
+): Promise<RemediationPlan> {
+  return request(`/scan-results/${resultSetId}/remediation-plan`);
+}
+
+// ---------------------------------------------------------------------------
+// Criticality Assessment
+// ---------------------------------------------------------------------------
+
+export type CriticalityTier = 'low' | 'medium' | 'high' | 'critical';
+
+export const CRITICALITY_TIER_LABELS: Record<CriticalityTier, string> = {
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  critical: 'Critical',
+};
+
+export const CRITICALITY_TIER_COLORS: Record<CriticalityTier, string> = {
+  low: '#6b7280',
+  medium: '#f59e0b',
+  high: '#f97316',
+  critical: '#ef4444',
+};
+
+export type CriticalitySignalType =
+  | 'naming-convention' | 'constraint-density' | 'reference-target'
+  | 'column-count' | 'index-coverage' | 'pii-pattern'
+  | 'financial-pattern' | 'audit-pattern' | 'soft-delete-pattern'
+  | 'junction-table' | 'enum-lookup' | 'null-ratio'
+  | 'finding-severity-load' | 'relationship-centrality' | 'schema-position';
+
+export interface CriticalitySignal {
+  signalType: CriticalitySignalType;
+  signalLabel: string;
+  weight: number;
+  value: number;
+  evidence: string;
+}
+
+export type CdeReasonType =
+  | 'pii-name-match' | 'financial-name-match' | 'regulatory-name-match'
+  | 'high-uniqueness' | 'fk-target-column' | 'primary-key' | 'low-null-high-use';
+
+export interface CdeCandidate {
+  columnKey: string;
+  columnName: string;
+  tableKey: string;
+  tableName: string;
+  schemaName: string;
+  reasons: CdeReasonType[];
+  rationale: string;
+  confidenceLevel: 'high' | 'medium' | 'low';
+}
+
+export interface AssetCriticalityRecord {
+  assetKey: string;
+  assetName: string;
+  assetType: 'table' | 'schema';
+  sourceSystem: string;
+  criticalityScore: number;
+  criticalityTier: CriticalityTier;
+  cdeCandidate: boolean;
+  cdeCandidates: CdeCandidate[];
+  signals: CriticalitySignal[];
+  rationale: string;
+  confidenceLevel: 'high' | 'medium' | 'low';
+}
+
+export interface CriticalityAssessmentSummary {
+  resultSetId: string;
+  assessedAt: string;
+  totalAssetsAssessed: number;
+  tierDistribution: Record<CriticalityTier, number>;
+  totalCdeCandidates: number;
+  topCriticalAssets: AssetCriticalityRecord[];
+  allAssets: AssetCriticalityRecord[];
+  allCdeCandidates: CdeCandidate[];
+  averageCriticalityScore: number;
+  methodDescription: string;
+}
+
+export async function fetchCriticalityAssessment(
+  resultSetId: string,
+): Promise<CriticalityAssessmentSummary | null> {
+  try {
+    return await request(`/scan-results/${resultSetId}/criticality`);
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Methodology Summary
+// ---------------------------------------------------------------------------
+
+export type AssumptionSourceType = 'empirical' | 'expert_estimated' | 'client_configured' | 'inferred' | 'system_default';
+export type MaterialityLevel = 'high' | 'medium' | 'low';
+export type MethodologyConfidenceLevel = 'high' | 'medium' | 'low' | 'very_low';
+export type ConfidenceArea = 'detection' | 'coverage' | 'economic' | 'criticality';
+
+export interface AssumptionRecord {
+  id: string;
+  category: string;
+  assumption: string;
+  sourceType: AssumptionSourceType;
+  materialityLevel: MaterialityLevel;
+  currentValue: string;
+  affectedOutputs: string[];
+}
+
+export interface CoverageGapRecord {
+  id: string;
+  category: string;
+  description: string;
+  impact: string;
+  mitigationHint: string;
+}
+
+export interface ConfidenceAssessmentRecord {
+  area: ConfidenceArea;
+  confidenceLevel: MethodologyConfidenceLevel;
+  rationale: string;
+  keyDrivers: string[];
+}
+
+export interface ScanCoverageSummary {
+  totalTables: number;
+  totalColumns: number;
+  schemaCount: number;
+  checksRun: number;
+  checksAvailable: number;
+  propertiesCovered: number[];
+  hasPipelineMapping: boolean;
+  hasExternalLineage: boolean;
+  adapterType: string;
+}
+
+export interface MethodologySummary {
+  version: string;
+  generatedAt: string;
+  assumptions: AssumptionRecord[];
+  coverageGaps: CoverageGapRecord[];
+  confidenceAssessments: ConfidenceAssessmentRecord[];
+  scanCoverage: ScanCoverageSummary;
+  overallConfidence: MethodologyConfidenceLevel;
+  overallConfidenceRationale: string;
+}
+
+export async function fetchMethodologySummary(
+  resultSetId: string,
+): Promise<MethodologySummary | null> {
+  try {
+    return await request(`/scan-results/${resultSetId}/methodology`);
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Trend & Regression Types
+// ---------------------------------------------------------------------------
+
+export type TrendDirection = 'improving' | 'worsening' | 'stable' | 'insufficient_data';
+export type FindingDeltaStatus = 'new' | 'resolved' | 'worsened' | 'improved' | 'unchanged';
+
+export interface TrendPoint {
+  resultSetId: string;
+  runLabel: string;
+  timestamp: string;
+  value: number;
+}
+
+export interface DalcTrendPoint extends TrendPoint {
+  lowUsd: number;
+  baseUsd: number;
+  highUsd: number;
+}
+
+export interface DalcTrendSeries {
+  points: DalcTrendPoint[];
+  direction: TrendDirection;
+  latestBaseUsd: number;
+  earliestBaseUsd: number;
+  percentChange: number | null;
+}
+
+export interface PropertyTrendRecord {
+  property: number;
+  propertyName: string;
+  series: TrendPoint[];
+  direction: TrendDirection;
+  latestFindingCount: number;
+  previousFindingCount: number | null;
+  latestBySeverity: Record<string, number>;
+}
+
+export interface FindingDeltaRecord {
+  status: FindingDeltaStatus;
+  checkId: string;
+  assetKey: string | null;
+  title: string;
+  property: number;
+  currentSeverity: string;
+  previousSeverity: string | null;
+  currentRawScore: number;
+  previousRawScore: number | null;
+}
+
+export interface RegressionSummary {
+  targetResultSetId: string;
+  baselineResultSetId: string;
+  targetLabel: string;
+  baselineLabel: string;
+  targetTimestamp: string;
+  baselineTimestamp: string;
+  counts: {
+    new: number;
+    resolved: number;
+    worsened: number;
+    improved: number;
+    unchanged: number;
+    total: number;
+  };
+  deltas: FindingDeltaRecord[];
+  topRegressions: FindingDeltaRecord[];
+  topImprovements: FindingDeltaRecord[];
+  dalcDelta: {
+    baselineLowUsd: number;
+    baselineBaseUsd: number;
+    baselineHighUsd: number;
+    targetLowUsd: number;
+    targetBaseUsd: number;
+    targetHighUsd: number;
+    changeLowUsd: number;
+    changeBaseUsd: number;
+    changeHighUsd: number;
+    percentChange: number | null;
+  };
+  overallDirection: TrendDirection;
+}
+
+export interface HistoricalComparisonWindow {
+  projectId: string;
+  windowSize: number;
+  resultSets: Array<{
+    resultSetId: string;
+    runLabel: string;
+    timestamp: string;
+    totalFindings: number;
+    criticalCount: number;
+    majorCount: number;
+    dalcBaseUsd: number;
+    dalcLowUsd: number;
+    dalcHighUsd: number;
+  }>;
+  dalcTrend: DalcTrendSeries;
+  propertyTrends: PropertyTrendRecord[];
+  regressionVsBaseline: RegressionSummary | null;
+  regressionVsPrevious: RegressionSummary | null;
+}
+
+// ---------------------------------------------------------------------------
+// Trend & Regression Fetch Functions
+// ---------------------------------------------------------------------------
+
+export async function fetchTrendWindow(
+  projectId: string,
+  windowSize: number = 10,
+): Promise<HistoricalComparisonWindow | null> {
+  try {
+    return await request(`/scan-results/project/${projectId}/trend?window=${windowSize}`);
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchRegressionSummary(
+  targetResultSetId: string,
+  baselineResultSetId: string,
+): Promise<RegressionSummary | null> {
+  try {
+    return await request(`/scan-results/${targetResultSetId}/regression/${baselineResultSetId}`);
+  } catch {
+    return null;
+  }
+}
+
+// ===========================================================================
+// Benchmark / Comparative Context Types
+// ===========================================================================
+
+export type BenchmarkPosition = 'below_range' | 'within_range' | 'above_range' | 'unknown';
+export type PropertyBenchmarkPosition = 'better_than_range' | 'near_range' | 'worse_than_range' | 'unknown';
+
+export interface BenchmarkMetric {
+  key: string;
+  label: string;
+  low: number;
+  high: number;
+  unit: string;
+  lowerIsBetter: boolean;
+}
+
+export interface BenchmarkPack {
+  id: string;
+  name: string;
+  description: string;
+  sector: string;
+  version: string;
+  calibratedAt: string;
+  dalcBaseUsd: BenchmarkMetric;
+  totalFindings: BenchmarkMetric;
+  highSeverityFindings: BenchmarkMetric;
+  highSeverityDensity: BenchmarkMetric;
+  propertyFindings: Record<number, BenchmarkMetric>;
+  methodNote: string;
+}
+
+export interface BenchmarkComparisonRecord {
+  metric: BenchmarkMetric;
+  actualValue: number;
+  position: BenchmarkPosition;
+  message: string;
+  percentFromRange: number | null;
+}
+
+export interface PropertyBenchmarkComparison {
+  property: number;
+  propertyName: string;
+  actualFindingCount: number;
+  benchmarkLow: number;
+  benchmarkHigh: number;
+  position: PropertyBenchmarkPosition;
+  message: string;
+}
+
+export interface ProjectBaselineComparison {
+  baselineAvailable: boolean;
+  baselineResultSetId: string | null;
+  baselineLabel: string | null;
+  baselineTimestamp: string | null;
+  dalcDirection: TrendDirection;
+  dalcDirectionLabel: string;
+  dalcPercentChange: number | null;
+  findingCountDirection: TrendDirection;
+  findingCountDirectionLabel: string;
+  findingCountDelta: number | null;
+  highSeverityDirection: TrendDirection;
+  highSeverityDirectionLabel: string;
+  highSeverityDelta: number | null;
+}
+
+export interface BenchmarkSummary {
+  packId: string;
+  packName: string;
+  packSector: string;
+  packVersion: string;
+  overallPosition: BenchmarkPosition;
+  overallMessage: string;
+  dalcComparison: BenchmarkComparisonRecord;
+  totalFindingsComparison: BenchmarkComparisonRecord;
+  highSeverityComparison: BenchmarkComparisonRecord;
+  highSeverityDensityComparison: BenchmarkComparisonRecord;
+  propertyComparisons: PropertyBenchmarkComparison[];
+  baselineComparison: ProjectBaselineComparison | null;
+  keyMessages: string[];
+}
+
+export const BENCHMARK_POSITION_COLORS: Record<BenchmarkPosition, string> = {
+  below_range: '#27AE60',
+  within_range: '#3498DB',
+  above_range: '#E74C3C',
+  unknown: '#95A5A6',
+};
+
+export const BENCHMARK_POSITION_LABELS: Record<BenchmarkPosition, string> = {
+  below_range: 'Better Than Expected',
+  within_range: 'Within Expected Range',
+  above_range: 'Worse Than Expected',
+  unknown: 'Insufficient Data',
+};
+
+export const PROPERTY_POSITION_COLORS: Record<PropertyBenchmarkPosition, string> = {
+  better_than_range: '#27AE60',
+  near_range: '#3498DB',
+  worse_than_range: '#E74C3C',
+  unknown: '#95A5A6',
+};
+
+export const PROPERTY_POSITION_LABELS: Record<PropertyBenchmarkPosition, string> = {
+  better_than_range: 'Better',
+  near_range: 'Near Expected',
+  worse_than_range: 'Worse',
+  unknown: 'Unknown',
+};
+
+// ---------------------------------------------------------------------------
+// Benchmark Fetch Functions
+// ---------------------------------------------------------------------------
+
+export async function fetchBenchmarkPacks(): Promise<BenchmarkPack[]> {
+  try {
+    const data = await request<{ packs: BenchmarkPack[] }>('/scan-results/benchmark-packs');
+    return data.packs;
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchBenchmarkComparison(
+  resultSetId: string,
+  packId?: string,
+  sector?: string,
+): Promise<BenchmarkSummary | null> {
+  try {
+    const params = new URLSearchParams();
+    if (packId) params.set('packId', packId);
+    if (sector) params.set('sector', sector);
+    const qs = params.toString();
+    return await request(`/scan-results/${resultSetId}/benchmark-comparison${qs ? `?${qs}` : ''}`);
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchBaselineComparison(
+  resultSetId: string,
+): Promise<ProjectBaselineComparison | null> {
+  try {
+    return await request(`/scan-results/${resultSetId}/baseline-comparison`);
+  } catch {
+    return null;
+  }
+}
+
+// ===========================================================================
+// Blast-Radius Graph Types
+// ===========================================================================
+
+export type BlastRadiusNodeType = 'property' | 'costCategory';
+export type BlastRadiusSeverityDistribution = Record<'critical' | 'major' | 'minor' | 'info', number>;
+
+export interface BlastRadiusNode {
+  id: string;
+  type: BlastRadiusNodeType;
+  label: string;
+  totalImpactUsd: number;
+  findingCount: number;
+  severityDistribution: BlastRadiusSeverityDistribution;
+  key: string | number;
+}
+
+export interface BlastRadiusEdge {
+  id: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  property: number;
+  costCategory: string;
+  weightUsd: number;
+  findingCount: number;
+  severityDistribution: BlastRadiusSeverityDistribution;
+  shareOfTotal: number;
+}
+
+export interface BlastRadiusGraph {
+  nodes: BlastRadiusNode[];
+  edges: BlastRadiusEdge[];
+  totalImpactUsd: number;
+  totalEdgeCount: number;
+  totalFindingCount: number;
+}
+
+export interface BlastRadiusHotEdge {
+  property: number;
+  propertyName: string;
+  costCategory: string;
+  costCategoryLabel: string;
+  weightUsd: number;
+  shareOfTotal: number;
+  findingCount: number;
+  topSeverity: string;
+}
+
+export interface BlastRadiusSummary {
+  totalImpactUsd: number;
+  totalEdgeCount: number;
+  totalPropertyNodesActive: number;
+  totalCostCategoryNodesActive: number;
+  topHotEdges: BlastRadiusHotEdge[];
+  concentrationRatio: number;
+  keyMessage: string;
+}
+
+export interface BlastRadiusDetail {
+  edges: Array<{
+    property: number;
+    propertyName: string;
+    costCategory: string;
+    costCategoryLabel: string;
+    weightUsd: number;
+    shareOfTotal: number;
+    findingCount: number;
+  }>;
+  propertyTotals: Array<{
+    property: number;
+    propertyName: string;
+    totalUsd: number;
+    findingCount: number;
+  }>;
+  categoryTotals: Array<{
+    category: string;
+    categoryLabel: string;
+    totalUsd: number;
+    findingCount: number;
+  }>;
+}
+
+export interface BlastRadiusResponse {
+  resultSetId: string;
+  graph: BlastRadiusGraph;
+  summary: BlastRadiusSummary;
+  detail: BlastRadiusDetail;
+}
+
+// ---------------------------------------------------------------------------
+// Blast-Radius Fetch
+// ---------------------------------------------------------------------------
+
+export async function fetchBlastRadius(
+  resultSetId: string,
+): Promise<BlastRadiusResponse | null> {
+  try {
+    return await request(`/scan-results/${resultSetId}/blast-radius`);
+  } catch {
+    return null;
+  }
+}
+
+// =============================================================================
+// Assessment Manifest Types
+// =============================================================================
+
+export interface ManifestVersionInfo {
+  appVersion: string;
+  dalcVersion: string;
+  rulesetVersion: string;
+  schemaVersion: number;
+}
+
+export interface ManifestRunMetadata {
+  resultSetId: string;
+  scanId: string | null;
+  runLabel: string;
+  adapterType: string;
+  sourceName: string | null;
+  sourceFingerprint: string | null;
+  status: string;
+  startedAt: string;
+  completedAt: string | null;
+  durationMs: number | null;
+  durationLabel: string | null;
+}
+
+export interface ManifestScanCoverage {
+  totalFindings: number;
+  criticalCount: number;
+  majorCount: number;
+  minorCount: number;
+  infoCount: number;
+  propertiesCovered: number;
+  totalProperties: number;
+  dalcTotalUsd: number;
+  dalcBaseUsd: number | null;
+  dalcLowUsd: number | null;
+  dalcHighUsd: number | null;
+  amplificationRatio: number;
+  derivedApproach: string | null;
+}
+
+export interface ManifestComponentAvailability {
+  coreFindings: boolean;
+  criticalityAssessment: boolean;
+  methodologySummary: boolean;
+  trendDataAvailable: boolean;
+  benchmarkAvailable: boolean;
+  blastRadiusAvailable: boolean;
+  remediationAvailable: boolean;
+}
+
+export interface AssessmentManifest {
+  manifestVersion: string;
+  generatedAt: string;
+  versions: ManifestVersionInfo;
+  run: ManifestRunMetadata;
+  coverage: ManifestScanCoverage;
+  components: ManifestComponentAvailability;
+}
+
+// ---------------------------------------------------------------------------
+// Assessment Manifest Fetch
+// ---------------------------------------------------------------------------
+
+export async function fetchManifest(
+  resultSetId: string,
+): Promise<AssessmentManifest | null> {
+  try {
+    return await request(`/scan-results/${resultSetId}/manifest`);
+  } catch {
+    return null;
+  }
+}

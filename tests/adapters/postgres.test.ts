@@ -2,6 +2,10 @@
 // PostgreSQL Adapter — Integration Tests
 // Uses Testcontainers to spin up a real PostgreSQL instance, seeds the fixture,
 // and validates the adapter extracts all schema metadata correctly.
+//
+// INFRA-DEPENDENT: Requires Docker for Testcontainers.
+// Set DOCKER_TESTS=1 to run.  Skipped by default in local/CI environments
+// without Docker.
 // =============================================================================
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -11,7 +15,9 @@ import { readFileSync } from 'fs';
 import { PostgreSQLAdapter } from '../../src/adapters/postgres';
 import type { SchemaData } from '../../src/adapters/types';
 
-describe('PostgreSQL Adapter', () => {
+const DOCKER_AVAILABLE = process.env.DOCKER_TESTS === '1';
+
+describe.skipIf(!DOCKER_AVAILABLE)('PostgreSQL Adapter', () => {
   let container: StartedPostgreSqlContainer;
   let schemaData: SchemaData;
 

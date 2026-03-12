@@ -108,6 +108,32 @@ export const p2TypeInconsistency: ScannerCheck = {
         remediation: ctx.remediation.typeInconsistency,
         costCategories: TYPE_INCONSISTENCY_ACTIVE_CATEGORIES,
         costWeights: { ...TYPE_INCONSISTENCY_COST_WEIGHTS },
+        evidenceInput: {
+          asset: {
+            type: 'column',
+            key: `${occurrences[0].schema}.${occurrences[0].table}.${colName}`,
+            name: colName,
+            schema: occurrences[0].schema,
+            table: occurrences[0].table,
+            column: colName,
+          },
+          metric: {
+            name: 'type_count',
+            observed: distinctTypes.size,
+            unit: 'types',
+            displayText: `${distinctTypes.size} distinct types for column "${colName}" across ${occurrences.length} tables`,
+          },
+          samples: occurrences.slice(0, 10).map(occ => ({
+            label: `Type: ${occ.normalizedType}`,
+            value: `${occ.schema}.${occ.table}.${colName}`,
+            context: { normalizedType: occ.normalizedType },
+          })),
+          explanation: {
+            whatWasFound: `Column "${colName}" has ${distinctTypes.size} different types across ${occurrences.length} tables: [${Array.from(distinctTypes).join(', ')}]`,
+            whyItMatters: 'Type inconsistency causes implicit coercion in joins, silent data loss during ETL, and unreliable analytics when the same logical column has different types',
+            howDetected: 'Grouped columns by name across all tables and compared their normalized data types',
+          },
+        },
       });
     }
 
@@ -244,6 +270,32 @@ export const p2UncontrolledVocab: ScannerCheck = {
           'Create reference/lookup tables for columns with controlled value sets. Add FK constraints to enforce referential integrity.',
         costCategories: UNCONTROLLED_VOCAB_ACTIVE_CATEGORIES,
         costWeights: { ...UNCONTROLLED_VOCAB_COST_WEIGHTS },
+        evidenceInput: {
+          asset: {
+            type: 'column',
+            key: `${uncontrolledColumns[0].schema}.${uncontrolledColumns[0].table}.${uncontrolledColumns[0].column}`,
+            name: uncontrolledColumns[0].column,
+            schema: uncontrolledColumns[0].schema,
+            table: uncontrolledColumns[0].table,
+            column: uncontrolledColumns[0].column,
+          },
+          metric: {
+            name: 'uncontrolled_vocab_columns',
+            observed: affectedCount,
+            unit: 'columns',
+            displayText: `${affectedCount} of ${totalCount} string columns are likely uncontrolled vocabularies`,
+          },
+          samples: uncontrolledColumns.slice(0, 10).map(uc => ({
+            label: `${uc.distinctCount} distinct values, no FK`,
+            value: `${uc.schema}.${uc.table}.${uc.column}`,
+            context: { distinctCount: uc.distinctCount },
+          })),
+          explanation: {
+            whatWasFound: `${affectedCount} string columns have 2–50 distinct values with no foreign key constraint`,
+            whyItMatters: 'Uncontrolled vocabularies allow data entry inconsistencies (typos, casing, synonyms) that corrupt analytics and reporting',
+            howDetected: 'Identified string columns with low-to-moderate cardinality (2–50 distinct values) that lack foreign key constraints to a reference table',
+          },
+        },
       },
     ];
   },
